@@ -1,0 +1,11 @@
+si hay nuevas plantillas tiene que tener un extension vacio
+
+<ext:UBLExtension>
+    <ext:ExtensionContent>
+    </ext:ExtensionContent>
+  </ext:UBLExtension>
+
+
+ademas quitar el shema para que no lo evalue php
+
+generar con la funcion convertir, archivos var para ayuda en la progreamacion, archivos php para incluirlos en vista

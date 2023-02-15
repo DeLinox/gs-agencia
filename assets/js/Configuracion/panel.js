@@ -1,0 +1,327 @@
+$(document).ready(function(){
+	getUsuarios();
+    getTipoProv();
+    getTipoTrans();
+	//getServicios();
+
+    $sel = $('select#cmbClientes').select2({
+        placeholder: 'Buscar Contacto',
+        width: '100%',
+        language: "es",
+        minimumInputLength: Infinity,
+        ajax: {
+            url: baseurl + "Contacto/buscar_clie",
+            dataType: 'json',
+            data: function(params) {
+                return {
+                    q: params.term,
+                    p: params.page,
+                    t: 'buscar'
+                };
+            },
+            processResults: function(data, params) {
+                params.page = params.page || 1;
+                return {
+                    results: data.items,
+                    pagination: {
+                        more: (params.page * 30) < data.total_count
+                    }
+                };
+            },
+            cache: true
+        },
+        escapeMarkup: function(markup) {
+            return markup;
+        },
+        minimumInputLength: 0,
+    }).on("select2:select", function(e) {
+        $('#facturacion').val(e.params.data.facturacion);
+        getTarifas(e.params.data.id);
+    }).on('select2:unselect', function(e) {
+
+    });
+    /*
+    $('.agregar_prov').on('click', function(){
+        $(this).load_dialog({
+            title: $(this).attr('title'),
+            loaded: function(dlg) {
+                $(dlg).find('form').submit(function() {
+                    $(dlg).find('.error').addClass('hidden')
+                    $(this).formPost(true, function(data) {
+                        if (data.exito == false) {
+                            $(dlg).find('.error').removeClass('hidden').html(data.mensaje);
+                        } else {
+                            dlg.modal('hide');
+                            alert(data.mensaje);
+                            getTipoProv();
+                        }
+                    });
+                    return false;
+                });
+            }
+        });
+        return false;
+    })
+    */
+    $('.agregar_trans').on('click', function(){
+        $(this).load_dialog({
+            title: $(this).attr('title'),
+            loaded: function(dlg) {
+                $(dlg).find('form').submit(function() {
+                    $(dlg).find('.error').addClass('hidden')
+                    $(this).formPost(true, function(data) {
+                        if (data.exito == false) {
+                            $(dlg).find('.error').removeClass('hidden').html(data.mensaje);
+                        } else {
+                            dlg.modal('hide');
+                            alert(data.mensaje);
+                            getTipoTrans();
+                        }
+                    });
+                    return false;
+                });
+            }
+        });
+        return false;
+    })
+    /*
+    $('.agregar_usuario').on('click', function(){
+        $(this).load_dialog({
+            title: $(this).attr('title'),
+            script: baseurl + 'assets/js/Usuario/form.js',
+            loaded: function(dlg) {
+                $(dlg).find('form').submit(function() {
+                    $(dlg).find('.error').addClass('hidden')
+                    $(this).formPost(true, function(data) {
+                        if (data.exito == false) {
+                            $(dlg).find('.error').removeClass('hidden').html(data.mensaje);
+                        } else {
+                            alert(data.mensaje);
+                            dlg.modal('hide');
+                            getUsuarios();
+                        }
+                    });
+                    return false;
+                });
+            }
+        });
+        return false;
+    })
+    */
+})
+function getUsuarios(){
+	$.ajax({
+        type: "POST",
+        dataType: "JSON",
+        url: baseurl + "configuracion/conf_usuarios",
+        success: function(data) {
+            $('#tbl-usuarios').find('tbody').html(data.html);
+            fn_acc();
+        }
+    });
+}
+/*
+function getServicios(){
+	$.ajax({
+        type: "POST",
+        dataType: "JSON",
+        url: baseurl + "configuracion/getServicios",
+        success: function(data) {
+            $('#servicios').find('tbody').html(data.html);
+            fn_trf();
+        }
+    });
+}
+
+function fn_trf() {
+	var all_tr = $('#servicios tbody tr');
+	$("#servicios tbody tr").on('click', function(){
+		all_tr.removeClass('tr-active');
+		$(this).addClass('tr-active');
+		var id = $(this).find('.ind').text();
+		getTarifas(id);
+	})
+}
+*/
+function fn_acc() {
+	$('.aditar, .aditar_permisos').on('click', function(e){
+		e.preventDefault();
+		clickCrear($(this));
+	})
+}
+function clickCrear($this) {
+    $this.load_dialog({
+        title: $this.attr('title'),
+        script: baseurl + 'assets/js/Usuario/form.js?v=2.0',
+        loaded: function(dlg) {
+            $(dlg).find('form').submit(function() {
+                $(dlg).find('.error').addClass('hidden')
+                $(this).formPost(true, function(data) {
+                    if (data.exito == false) {
+                        $(dlg).find('.error').removeClass('hidden').html(data.mensaje);
+                    } else {
+                        alert(data.mensaje);
+                        dlg.modal('hide');
+                        getUsuarios();
+                    }
+                });
+                return false;
+            });
+        }
+    });
+    return false;
+}
+function fnc_tarifas() {
+
+    $('.adit_precio').on('click',function() {
+        $(this).load_dialog({
+            title: $(this).attr('title'),
+            loaded: function(dlg) {
+                $(dlg).find('form').submit(function() {
+                    $(dlg).find('.error').addClass('hidden')
+                    $(this).formPost(true, function(data) {
+                        if (data.exito == false) {
+                            alert(data.mensaje);
+                        } else {
+                            alert(data.mensaje);
+                            dlg.modal('hide');
+                            getTarifas(data.id);
+                        }
+                    });
+                    return false;
+                });
+            }
+        });
+        return false;
+    })
+}
+function getTarifas(id) {
+
+	$.ajax({
+        type: "POST",
+        dataType: "json",
+        url: baseurl + "registro/tarifas_cliente/" + id + "/" + $("#facturacion").val(),
+        success: function(data) {
+            if (data.exito == false) {
+                alert(data.mensaje);
+            } else {
+                $('#tarifas_2').find('tbody').html(data.tabla);
+                fnc_tarifas();
+            }
+        }
+    });
+}
+function getTipoProv() {
+    $.ajax({
+        type: "POST",
+        dataType: "json",
+        url: baseurl + "configuracion/tipo_proveedor",
+        success: function(data) {
+            if (data.exito == false) {
+                alert(data.mensaje);
+            } else {
+                $('#tipos_prov').find('tbody').html(data.html);
+                fn_prov();
+            }
+        }
+    });
+}
+function getTipoTrans() {
+    $.ajax({
+        type: "POST",
+        dataType: "json",
+        url: baseurl + "configuracion/tipo_transporte",
+        success: function(data) {
+            if (data.exito == false) {
+                alert(data.mensaje);
+            } else {
+                $('#tipos_trans').find('tbody').html(data.html);
+                fn_trans();
+            }
+        }
+    });
+}
+function fn_prov() {
+    $('.eliminar_tipo').on('click', function(e) {
+        e.preventDefault();
+        if(confirm("Esta segudo de eliminar el tipo?")){
+            $.ajax({
+                type: "POST",
+                dataType: "json",
+                url: $(this).attr("href"),
+                success: function(data) {
+                    if (data.exito == false) {
+                        alert(data.mensaje);
+                    } else {
+                        alert(data.mensaje);
+                        getTipoProv();
+                    }
+                }
+            });
+        }
+    })
+
+    $('.aditar_prov').on('click', function(){
+        $(this).load_dialog({
+            title: $(this).attr('title'),
+            loaded: function(dlg) {
+                $(dlg).find('form').submit(function() {
+                    $(dlg).find('.error').addClass('hidden')
+                    $(this).formPost(true, function(data) {
+                        if (data.exito == false) {
+                            $(dlg).find('.error').removeClass('hidden').html(data.mensaje);
+                        } else {
+                            dlg.modal('hide');
+                            alert(data.mensaje);
+                            getTipoProv();
+                        }
+                    });
+                    return false;
+                });
+            }
+        });
+        return false;
+    })
+}
+function fn_trans() {
+    $('.eliminar_trans').on('click', function(e) {
+        e.preventDefault();
+        if(confirm("¿Esta segudo de eliminar el tipo?")){
+            $.ajax({
+                type: "POST",
+                dataType: "json",
+                url: $(this).attr("href"),
+                success: function(data) {
+                    if (data.exito == false) {
+                        alert(data.mensaje);
+                    } else {
+                        alert(data.mensaje);
+                        getTipoTrans();
+                    }
+                }
+            });
+        }
+    })
+
+    $('.aditar_trans').on('click', function(){
+        $(this).load_dialog({
+            title: $(this).attr('title'),
+            loaded: function(dlg) {
+                $(dlg).find('form').submit(function() {
+                    $(dlg).find('.error').addClass('hidden')
+                    $(this).formPost(true, function(data) {
+                        if (data.exito == false) {
+                            $(dlg).find('.error').removeClass('hidden').html(data.mensaje);
+                        } else {
+                            dlg.modal('hide');
+                            alert(data.mensaje);
+                            getTipoTrans();
+                        }
+                    });
+                    return false;
+                });
+            }
+        });
+        return false;
+    })
+}

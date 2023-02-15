@@ -1,0 +1,241 @@
+body
+    font-size 12px
+.pad10
+  padding 10px
+.pad20
+  padding 20px
+.navbar
+  margin-bottom 0
+  border-bottom 1px solid #aaa
+  h3
+    margin-top 17px
+  .navbar-header
+    float none
+  .navbar-brand
+    display relative
+    color #333 !important
+    img.logo
+      position absolute
+      top 3px
+      display block
+      float left
+      padding 5px 5px 0 0
+    span
+      margin-left 40px
+h3
+  font-size 16px
+  font-weight normal
+  margin 7px 5px 7px 0
+label
+  font-weight normal
+.dropdown.filter
+  p
+    margin 0
+  label
+    font-size 12px
+.page-header
+  margin 0
+  border-bottom none
+  .page-header-title
+    border-bottom 1px solid #ccc
+    padding-top 10px
+    padding-bottom 10px
+    margin-bottom 10px
+    background-color #d9edf7
+    h3
+      font-weight bold
+#page-wrapper.page-filter
+  .page-header
+    border-bottom 1px solid #ccc
+  .page-content
+    top 103px
+#page-wrapper
+  background-color #fff
+  .page-content
+    padding 15px
+.nav
+  >li
+    >a
+      color #555
+      white-space normal
+      line-height 30px
+  .dropdown
+    float right
+    .dropdown-messages
+      width 310px
+      margin-left -300px
+      li>a
+        white-space normal
+.sidebar
+  font-size 13px
+  margin-top 50px
+  background-color #eee
+  border-right 1px solid #aaa
+  .sidebar-nav
+    background-color #eee
+    >ul>li>a.active,>ul>li.active
+      color #fff
+      text-decoration none
+      background-color #e5565a
+    ul
+      padding 0
+      margin 0
+      list-style none
+    a, a:hover, a:focus, a:active
+      outline none
+    ul li, ul a
+      display block
+      position relative
+    ul a
+      //padding 10px 10px 10px 20px
+      line-height 40px
+      padding-left 10px
+      color #555
+      span.more
+        display block
+        text-align center
+        font-size 10px
+        background-color transparent
+        line-height 40px
+        float right
+        position absolute
+        top 0
+        right 0
+        height 40px;
+        width 40px
+      span.more:hover
+        background-color #ccc
+        color #555
+      i
+        margin-right 5px
+        font-size 14px
+    ul a:hover, ul a:focus, ul a:active
+      background-color #fff
+      text-decoration none
+  .navbar-collapse
+    padding 0
+
+@media(min-width:768px)
+  .sidebar
+    margin-top 0
+    z-index 1
+    top 50px
+    position absolute
+    width 175px
+    overflow auto
+    bottom 0
+  #page-wrapper
+    position absolute
+    top 50px
+    left 175px
+    right 0
+    bottom 0
+    overflow hidden
+    .page-content
+      overflow auto
+      position absolute
+      bottom 0
+      left 0
+      right 0
+      top 53px
+#mitabla
+  .opts
+    white-space nowrap
+    .btn-group
+      width 60px
+    .dropdown
+      width 45px
+      display inline-block
+    input
+      margin-right 5px
+.serv
+  .serv-wrap
+    .serv-item
+      .serv-opts
+        width 40px
+        float left
+      .serv-deta
+        margin-left 40px
+        border 1px solid #ccc
+        padding 10px 15px
+        background #eee
+        margin-bottom 5px
+        label
+          margin-bottom 0px
+        .form-group
+          margin-bottom 5px
+    
+.fact
+  label
+    margin-bottom 1px
+  .fact-total
+    float right
+    span
+      width 100px
+      float left
+      text-align right
+    span:last-child
+      width 70px
+    input
+      border none
+      text-align right
+      width 70px
+      padding 0
+      margin 0
+    div
+      line-height 25px
+    i
+      float left
+      width 30px
+      text-align center
+    .subtotal
+      border-bottom 1px solid #ccc
+    .impuesto
+      border-bottom 2px solid #ccc
+    .total
+      font-weight bold
+
+  .fact-wrap
+    .fact-head
+      border 1px solid #fff
+      text-transform uppercase
+      font-weight bold
+      padding 4px 4px 0 4px
+    .fact-item
+      border 1px solid #ccc
+      padding 4px
+      background #eee
+      margin-bottom 5px
+      padding 4px
+      .input-group-addon
+        font-size 12px
+        font-weight bold
+        padding 0 3px
+    .deta_detalle
+      height 10px
+  .formdrown
+    label
+      font-weight normal
+      font-size 12px
+      display inline-block
+      width 100px;
+    .form-control
+      width auto
+      display inline-block
+    ul li
+      padding 5px 10px
+      white-space nowrap
+.hhd{
+  padding: 10px 0;
+  margin: 10px 0;
+  background: #d9edf7;
+  font-weight: bold;
+}
+.hhs{ margin: 0; padding: 5px 5px;}
+.oculto{display: none;}
+#mitabla
+  td
+    padding 4px 4px 2px 4px
+  tbody
+    tr.selected
+      background yellow

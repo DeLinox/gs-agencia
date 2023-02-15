@@ -1,0 +1,1051 @@
+<?php 
+/**
+* 
+*/
+class Almacen extends CI_Controller
+{
+    var $configuracion;
+    var $titulos;
+	function __construct() {
+        parent::__construct();
+        if(!$this->session->userdata('authorized')){
+            redirect(base_url()."login");
+        }
+        $this->load->database();
+        $this->configuracion = $this->db->query("SELECT * FROM configuracion")->row();
+        $this->load->model("Model_general");
+        $this->titulos = array(
+                    '1'=>'Ingreso',
+                    '2'=>'Salida',
+                    '3'=>'Traslado'
+                );
+        $consult = $this->db->from("venta")->where("vent_pagado = 'NO'")->get()->result();
+        $this->pendientes = count($consult);
+    }
+
+    public function index(){
+        $this->load->view('header');
+        $this->load->view('menu');
+        $this->load->view('footer');
+    }    
+
+    public function buscar() {
+        $this->load->helper('Funciones');
+        $responese = new StdClass;
+        $search = isset($_GET['q']) ? $_GET["q"] : '';
+        $f = isset($_GET['f']) ? $_GET["f"] : '';
+
+        $filtro = array("vent_file" => $search);
+        if(!empty($f)){
+            $f = dateToMysql($f);
+            $filtro['vent_fecha'] = $f;
+        }
+        
+
+        $datos = array();
+
+
+        $producto = $this->Model_general->select2("venta", $filtro,'vent_id DESC');    
+        //print_r($producto);
+        foreach ($producto["items"] as $value) {
+            $datos[] = array("id" => $value->vent_id, "text" => ($value->vent_serie."-".$value->vent_numero) );
+        }
+        $responese->total_count = $producto["total_count"];
+        $responese->incomplete_results = false;
+        $responese->items = $datos;
+        echo json_encode($responese);
+        
+    }
+
+    public function listado($idcomp=1) {
+        $this->load->helper('Funciones');
+        $this->load->database();
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+
+        $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+        $columns = array(
+            array('db' => 'movi_id',            'dt' => 'ID',           "field" => "movi_id"),
+            array('db' => 'movi_prov_rsocial',	'dt' => 'Proveedor',    "field" => "movi_prov_rsocial"),
+            array('db' => 'comp_nombre',   		'dt' => 'Comprobante',  "field" => "comp_nombre"),
+            array('db' => 'movi_fecha',   		'dt' => 'Fecha',     	"field" => "movi_fecha"),
+			array('db' => "CONCAT(movi_serie,'-',movi_numero)", 'dt' => 'Número',    "field" => "CONCAT(movi_serie,'-',movi_numero)"),
+            array('db' => 'movi_total',         'dt' => 'Total',       	"field" => "movi_total"),
+            array('db' => 'movi_id',            'dt' => 'DT_RowId',    	"field" => "movi_id")
+        );
+        $adicional = array(
+            array('db' => 'movi_caja',      'dt' => 'DT_Caja',  "field" => "movi_caja"),
+            array('db' => 'movi_almacen',   'dt' => 'DT_Alm',   "field" => "movi_almacen")
+        );
+        if($idcomp != 3)
+            $columns = array_merge($columns, $adicional);
+
+        if ($json) {
+
+            $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+            $table = 'movimiento';
+            $primaryKey = 'movi_id';
+
+            $sql_details = array(
+                'user' => $this->db->username,
+                'pass' => $this->db->password,
+                'db' => $this->db->database,
+                'host' => $this->db->hostname
+            );
+
+            $condiciones = array();
+            $joinQuery = "FROM movimiento JOIN maestra_comprobantes ON comp_id=movi_comp_id";
+            $where = "";
+            if (!empty($_POST['desde'])&&!empty($_POST['hasta'])){
+                $condiciones[] = "movi_fecha >='".$_POST['desde']."' AND movi_fecha <='".$_POST['hasta']."'";
+            }
+            $condiciones[] = "movi_tipo_id='".$idcomp."'";
+
+           if (!empty($_POST['sucursal']))
+                $condiciones[] = "movi_sucu_id='".$_POST['sucursal']."'";
+            /*
+            if (!empty($_POST['archivo']))
+                $condiciones[] = "vent_genera_archivo='".$_POST['archivo']."'";
+            if (!empty($_POST['estado']))
+                $condiciones[] = "situ_grup_id='".$_POST['estado']."'";*/
+
+            $where = count($condiciones) > 0 ? implode(' AND ', $condiciones) : "";
+            echo json_encode(
+                    $this->ssp->simple($_POST, $sql_details, $table, $primaryKey, $columns, $joinQuery, $where)
+            );
+            exit(0);
+        }
+        $datos["comprobantes"] = $this->Model_general->getOptions('maestra_comprobantes', array("comp_id", "comp_nombre"),'* Comprobantes');
+        $datos["sucursales"] = $this->Model_general->getOptions('sucursal', array("sucu_id", "sucu_nombre"),'* Almacenes');
+        $datos['columns'] = $columns;
+
+        $datos['titulo'] = $this->titulos[$idcomp];
+        $datos['idcomp'] = $idcomp;
+
+        $this->cssjs->set_path_js(base_url() . "assets/js/Almacen/");
+        $this->cssjs->add_js('listado');
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('almacen/listado', $datos);
+        $this->load->view('footer');
+    }
+    public function inventario(){
+        $this->load->helper('Funciones');
+        $this->load->database();
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+
+        $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+        $columns = array(
+            array('db' => 'sucu_nombre',        'dt' => 'Almacen',         "field" => "sucu_nombre"),
+            array('db' => 'prod_nombre',        'dt' => 'Producto',         "field" => "prod_nombre"),
+            array('db' => 'stoc_cantidad',      'dt' => 'stoc_cantidad',    "field" => "stoc_cantidad"),
+            array('db' => 'stoc_reg_fingreso',  'dt' => 'Último ingreso',   "field" => "stoc_reg_fingreso"),
+            array('db' => 'stoc_reg_fsalida',   'dt' => 'Última salida',    "field" => "stoc_reg_fsalida")
+        );
+
+        if ($json) {
+
+            $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+            $table = 'stock';
+            $primaryKey = 'stoc_sucu_id';
+
+            $sql_details = array(
+                'user' => $this->db->username,
+                'pass' => $this->db->password,
+                'db' => $this->db->database,
+                'host' => $this->db->hostname
+            );
+
+            $condiciones = array();
+            
+
+            $joinQuery = "FROM stock JOIN producto ON prod_id = stoc_prod_id LEFT JOIN sucursal ON sucu_id = stoc_sucu_id";
+            $where = "";
+
+            if (!empty($_POST['sucursal']))
+                $condiciones[] = "stoc_sucu_id='".$_POST['sucursal']."'";
+
+            $where = count($condiciones) > 0 ? implode(' AND ', $condiciones) : "";
+            echo json_encode(
+                    $this->ssp->simple($_POST, $sql_details, $table, $primaryKey, $columns, $joinQuery, $where)
+            );
+            exit(0);
+        }
+        $datos['columns'] = $columns;
+
+        $datos['titulo'] = "Inventario de productos";
+        
+
+        $datos["sucursal"] = $this->Model_general->getOptions('sucursal', array("sucu_id", "sucu_nombre"),'* Almacenes');
+
+        $this->cssjs->set_path_js(base_url() . "assets/js/Almacen/");
+        $this->cssjs->add_js('inventario');
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('almacen/inventario', $datos);
+        $this->load->view('footer');
+    }
+    public function ver($id,$bool=false){
+
+        $datos['id'] = $id;
+        $datos['bool'] = $bool;
+        if($bool){
+            $this->load->helper('Funciones');
+            $this->load->database();
+            $this->load->library('Ssp');
+            $this->load->library('Cssjs');
+            $this->cssjs->set_path_js(base_url() . "assets/js/Venta/");
+            $this->cssjs->add_js('listado');
+            $datos['js'] = $this->cssjs->generate_js();
+            $this->load->view('header', $datos);
+        }
+        $venta = $this->db->query("SELECT * FROM venta WHERE vent_id='{$id}'")->row();
+        $datos['venta'] = $venta;
+        $this->load->view('Venta/ver',$datos);
+        if($bool)$this->load->view('footer');
+    }
+
+    public function vercomp($id){
+        $datos['id'] = $id;
+        $venta = $this->db->query("SELECT * FROM venta WHERE vent_id='{$id}'")->row();
+		if($venta->vent_comp_id == '01'){
+			$this->ver($id);
+		}else{
+			$datos['venta'] = $venta;
+			$this->load->view('Venta/vercomp',$datos);
+		}
+    }
+	
+	public function sopre() {
+
+		$odb = $this->load->database('sopre2', TRUE); 
+        $this->load->helper('Funciones');
+        $this->load->database();
+        $this->load->library('Framework');
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+
+        $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+        $columns = array(
+            array('db' => 'comp_id',        'dt' => 'ID',           "field" => "comp_id"),
+            array('db' => 'ctipo_nombre',   'dt' => 'Comprobante',  "field" => "ctipo_nombre"),
+            array('db' => 'comp_fecha',  	'dt' => 'Fecha',        "field" => "comp_fecha"),
+            array('db' => 'clie_rsocial',   'dt' => 'Cliente',      "field" => "clie_rsocial"),
+            array('db' => 'mone_nombre',    'dt' => 'Moneda',       "field" => "mone_nombre"),
+            array('db' => 'comp_total',     'dt' => 'Total',        "field" => "comp_total"),
+            array('db' => 'comp_appfact',   'dt' => 'APP',      "field" => "comp_appfact"),
+            array('db' => 'comp_id',        'dt' => 'DT_RowId',     "field" => "comp_id")
+        );
+
+        if ($json) {
+
+            $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+            $table = 'comprobante';
+            $primaryKey = 'comp_id';
+
+            $sql_details = array(
+                'user' => $odb->username,
+                'pass' => $odb->password,
+                'db' => $odb->database,
+                'host' => $odb->hostname
+            );
+
+            $condiciones = array();
+            $joinQuery = "FROM comprobante INNER JOIN paquete ON comp_paqu_id = paqu_id JOIN cliente_agencia ON comp_clie_id = clie_id JOIN moneda ON comp_mone_id = mone_id JOIN comprob_tipo ON ctipo_id=comp_ctipo_id";
+            $where = "";
+            if (!empty($_POST['desde'])&&!empty($_POST['hasta'])){
+                $condiciones[] = "comp_fecha >='".$_POST['desde']."' AND comp_fecha <='".$_POST['hasta']."'";
+            }
+            if (!empty($_POST['comprobantes']))
+                $condiciones[] = "comp_ctipo_id='".$_POST['comprobantes']."'";
+            if (!empty($_POST['moneda']))
+                $condiciones[] = "comp_mone_id='".$_POST['moneda']."'";
+            if (!empty($_POST['tipo']))
+                $condiciones[] = "paqu_tipo='".$_POST['tipo']."'";
+             if (!empty($_POST['appfact']))
+                $condiciones[] = "comp_appfact='".$_POST['appfact']."'";
+
+            $where = count($condiciones) > 0 ? implode(' AND ', $condiciones) : "";
+
+            echo json_encode(
+                    $this->ssp->simple($_POST, $sql_details, $table, $primaryKey, $columns, $joinQuery, $where)
+            );
+            exit(0);
+        }
+ 
+
+        $tipos[1] = new stdClass();
+        $tipos[1]->i = "FILE";
+        $tipos[2] = new stdClass();
+        $tipos[2]->i = "LOCAL";
+
+        $apps[1] = new stdClass();
+        $apps[1]->i = "NO";
+        $apps[2] = new stdClass();
+        $apps[2]->i = "SI";
+
+
+
+        $datos['tipo'] = select_options($tipos,array('i','i'),'* Tipos');
+        $datos['appfact'] = select_options($apps,array('i','i'));
+        $datos['moneda'] = select_options($odb->query("SELECT mone_id, mone_nombre from moneda")->result(),array("mone_id", "mone_nombre"),'* Monedas');
+        $datos['comprobantes'] = select_options($odb->query("SELECT ctipo_id, ctipo_nombre 
+                                                        from comprob_tipo 
+                                                        where ctipo_nombre = 'Factura' || 
+                                                        ctipo_nombre = 'Boleta de Venta' ||
+                                                        ctipo_nombre = 'Nota de crédito' ||
+                                                        ctipo_nombre = 'Nota de débito'")->result(),array("ctipo_id", "ctipo_nombre"),'* Comprobantes');
+        $datos['columns'] = $columns;
+
+        $this->cssjs->set_path_js(base_url() . "assets/js/Venta/");
+        $this->cssjs->add_js('prelistado');
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('Venta/PreListado', $datos);
+        $this->load->view('footer');
+    }
+    public function nextnum($tipo,$serie){
+        $this->db->select('MAX(movi_numero) as max');
+        $this->db->from('movimiento');
+        //$this->db->where("movi_tipo_id=$tipo AND movi_serie='{$serie}'");
+        $this->db->where("movi_serie='{$serie}'");
+        $query = $this->db->get();
+        $row = $query->row();
+        $numero = $row->max+1;
+        return $numero;
+    }
+	
+	public function getnext($tipo,$serie){
+		echo json_encode(array('numero'=>$this->nextnum($tipo,$serie)));
+	}
+    
+    public function crear($idcomp) {
+        $this->load->database();
+        $this->load->helper('Funciones');
+        $this->load->model("Model_general");
+        $serie="M001";
+        $movi = array('movi_fecha' => date('d/m/Y'),
+                         'movi_comp_id' => '',
+                         'movi_comp_numero' => '',
+                         'movi_serie' => $serie,
+                         'movi_numero' => $this->nextnum($idcomp,$serie),
+                         'movi_prov_id' => '',
+                         'movi_sucu_id' => '',
+                         'movi_sucu_id_t' => '',
+                         'movi_prov_direccion' => '',
+                         'movi_prov_rsocial' => '',
+                         'movi_prov_docu_id' => '',
+                         'movi_prov_num_documento' => '',
+                         'movi_prov_email' => '',
+                         'movi_moneda' => 1,
+                         'movi_tipo_id' => '',
+                         'movi_descripcion' => '');
+
+        $datos["comprobantes"] = $this->Model_general->getOptions('maestra_comprobantes', array("comp_id", "comp_nombre"));
+        $datos["tipo_mov"] = $this->Model_general->getOptionsWhere('kardex_producto_tipo', array("tipo_id", "tipo_nombre"),array("tipo_tipo" => (int)$idcomp));
+        $datos["credito_tipo"] = $this->Model_general->getOptions('maestra_creditos', array("cred_id", "cred_nombre"));
+
+        $datos["sucursal"] = $this->Model_general->getOptions('sucursal', array("sucu_id", "sucu_nombre"));
+        
+        $datos["debito_tipo"] = $this->Model_general->getOptions('maestra_debitos', array("debi_id", "debi_nombre"));
+        $datos["comprobantes_nota"] = select_options($this->db->query("SELECT comp_id,comp_nombre FROM maestra_comprobantes WHERE comp_id<=3")->result(),array('comp_id','comp_nombre'));
+        $datos["documentos"] = $this->Model_general->getOptions('maestra_documentos', array("docu_id", "docu_nombre"));
+        //$datos["tipo_detalle"] = $this->Model_general->enum_valores('venta_detalle','deta_tipo');
+        $datos["tipo_detalle"] = $this->Model_general->getOptions('maestra_afectacion', array("afec_id", "afec_nombre"));
+        $datos["gratuita_select"] = $this->Model_general->enum_valores('venta_detalle','deta_esgratuita');
+        $datos["moneda"] = $this->Model_general->enum_valores('venta','vent_moneda');
+        $datos["movi"] = (object)$movi;
+        $datos["productos"] = json_encode(array());
+        $datos["id_movi"] = '';
+        $datos["movi_clase"] = $idcomp;
+        $datos["id"] = "";
+
+        $datos['titulo'] = "Registrar ".$this->titulos[$idcomp];
+        $datos['peq_titulo'] = $this->titulos[$idcomp];
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+        $this->cssjs->set_path_js(base_url() . "assets/js/Almacen/");
+        $this->cssjs->add_js('form');
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('almacen/formulario', $datos);
+        $this->load->view('footer');
+    }
+    public function edit($id=0){
+        $this->load->database();
+        $this->load->helper('Funciones');
+        $this->load->model("Model_general");
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+        $this->cssjs->set_path_js(base_url() . "assets/js/Almacen/");
+        $this->cssjs->add_js('form');
+
+        $datos["comprobantes"] = $this->Model_general->getOptions('maestra_comprobantes', array("comp_id", "comp_nombre"));
+        $datos["credito_tipo"] = $this->Model_general->getOptions('maestra_creditos', array("cred_id", "cred_nombre"));
+        $datos["debito_tipo"] = $this->Model_general->getOptions('maestra_debitos', array("debi_id", "debi_nombre"));
+        $datos["comprobantes_nota"] = select_options($this->db->query("SELECT comp_id,comp_nombre FROM maestra_comprobantes WHERE comp_id<=3")->result(),array('comp_id','comp_nombre'));
+        $datos["documentos"] = $this->Model_general->getOptions('maestra_documentos', array("docu_id", "docu_nombre"));
+        
+        $movi = $this->Model_general->getMovimientoById($id);
+        $fecha = date_create($movi->movi_fecha);
+        $movi->movi_fecha = date_format($fecha, 'd/m/Y');
+
+
+        $arr_clie = array('id'=>$movi->movi_prov_id,
+        	'text'=>$movi->movi_prov_rsocial,
+        	'docnum'=>$movi->movi_prov_num_documento,
+        	'direccion'=>$movi->movi_prov_direccion,
+        	'documento'=>$movi->movi_prov_docu_id
+        	);
+         
+        switch ($movi->movi_clase) {
+            case 'INGRESO':
+                $movi->movi_clase = 1;
+                break;
+            case 'SALIDA':
+                $movi->movi_clase = 2;
+                break;
+            case 'TRASLADO':
+                $movi->movi_clase = 3;
+                break;
+            default:
+                $movi->movi_clase = 0;
+                break;
+        }
+
+        $movi->clie_selected_data = json_encode($arr_clie);
+        $datos["movi"] = $movi;
+        $datos["movi_clase"] = $movi->movi_clase;
+        $datos['peq_titulo'] = $this->titulos[$movi->movi_clase];
+        $datos["id_movi"] = $id;
+        $datos["id"] = "";
+        $productos = $this->Model_general->getProductosByMovimiento($id);
+        //$datos["tipo_detalle"] = $this->Model_general->enum_valores('venta_detalle','deta_tipo');
+        $datos["tipo_detalle"] = $this->Model_general->getOptions('maestra_afectacion', array("afec_id", "afec_nombre"));
+        $datos["moneda"] = $this->Model_general->enum_valores('venta','vent_moneda');
+        $datos["tipo_mov"] = $this->Model_general->getOptionsWhere('kardex_producto_tipo', array("tipo_id", "tipo_nombre"),array("
+            tipo_tipo" => $movi->movi_clase));
+        $datos["productos"] = json_encode($productos);
+        $datos["sucursal"] = $this->Model_general->getOptions('sucursal', array("sucu_id", "sucu_nombre"));
+        $datos["gratuita_select"] = $this->Model_general->enum_valores('venta_detalle','deta_esgratuita');
+        
+        $datos['titulo'] = "Editar ".$this->titulos[$movi->movi_clase];;
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('almacen/formulario', $datos);
+        $this->load->view('footer');
+    }
+
+    public function pagar($id){
+        $this->load->helper('Funciones');
+        //$datos["venta"] = $this->db->from('venta')->where("vent_id",$id)->get()->row();
+        $datos["movi"] = $this->db->where("movi_id", $id)->get('movimiento')->row();
+        
+        $datos["cuentas"] = $this->Model_general->getOptionsWhere("cuenta",array('cuen_id','cuen_banco'),array('cuen_activo' => 'SI'));
+
+        
+        $this->load->view('Almacen/cobrar', $datos);
+    }
+    public function guardar_pago($id_movi){
+        
+        $total = $this->input->post('total');
+        $cuenta = $this->input->post('cuenta');
+        $datos = array('pago_vent_id' => $id_movi,
+                        'pago_monto' => $total,
+                        'pago_fecha' => date('Y-m-d H:i:s'),
+                        'pago_saldo' => 0,
+                        'pago_cuen_id' => $cuenta
+        );
+        $this->db->trans_start();
+        if($this->Model_general->guardar_registro("pago", $datos) != FALSE){
+            
+            $this->Model_general->guardar_edit_registro("movimiento", array("movi_caja" => 'SI'), array('movi_id' => $id_movi));
+            $movi = $this->db->where("movi_id", $id_movi)->get("movimiento")->row();
+            $arr1 = array(1,4,8);
+            if(in_array($movi->movi_tipo_id,$arr1))
+                $this->afectar_cuenta($cuenta, 'INGRESO', $total);
+            else    
+                $this->afectar_cuenta($cuenta, 'EGRESO', $total);
+            
+        }
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE){
+            $json['exito'] = false;
+            $json['mensaje'] = "Error al guardar los datos";
+        }else{
+            $json['exito'] = true;  
+            $json['mensaje'] = "Datos guardados con exito";
+        }
+        echo json_encode($json);
+    }
+    public function afectar_cuenta($id_cuenta,$accion, $monto){
+        $cuenta = $this->db->where("cuen_id", $id_cuenta)->get("cuenta")->row();
+        $nuevo_monto = ($accion == 'INGRESO' ? $cuenta->cuen_monto + $monto : $cuenta->cuen_monto - $monto);
+        $this->Model_general->guardar_edit_registro("cuenta", array("cuen_monto" => $nuevo_monto), array('cuen_id' => $id_cuenta));
+    }
+
+    private function validarComprobante(){
+        $this->load->library('Form_validation');
+        $this->form_validation->set_rules('serie', 'Serie', 'required');
+        $this->form_validation->set_rules('numero', 'Número', 'required');
+
+        if($this->input->post('exterior')=='1'){
+            $this->form_validation->set_rules('rsocial', 'Razon Social', 'required');
+        }else if(in_array($this->input->post('comprobante'),array('01','07','08'))){
+            $this->form_validation->set_rules('rsocial', 'Razon Social', 'required');
+            $this->form_validation->set_rules('fecha', 'Fecha', 'required');
+            $this->form_validation->set_rules('direccion', 'Dirección', 'required');
+            $this->form_validation->set_rules('docnum', 'Número de documento', 'required');
+            if($this->input->post('comprobante')=="01"){
+                $this->form_validation->set_rules('docnum', 'Número de documento', 'required|exact_length[11]');
+                $this->form_validation->set_rules('documento', 'Tipo de documento', 'regex_match[/6/]',array('regex_match'=>"El tipo de documento tiene que ser RUC"));
+            }
+        }
+         $this->form_validation->set_rules('detalle[]', 'Detalle del comprobante', 'required');
+
+        if(in_array($this->input->post('comprobante'),array('07','08'))){
+            $this->form_validation->set_rules('descripcion', 'Descripción', 'required');
+        }
+        
+        if ($this->form_validation->run() == FALSE){        
+            $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>validation_errors()));
+        }
+    }
+
+	public function guardar($id=''){
+		
+		
+        $this->load->helper('Funciones');
+        $clase  = $this->input->post('movi_clase');
+        $sucursal = $this->input->post('sucursal');
+        $sucursalt = $this->input->post('sucursalt') != '' ? $this->input->post('sucursalt') : 1;
+
+        if($clase != 3){
+            $this->validarComprobante();
+        }else{
+            if($sucursal == $sucursalt)
+                $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Las sucursales tienen que ser diferentes.'));
+        }
+        
+        $comprobante = $this->input->post('comprobante');
+        $num_compro = $this->input->post('comp_numero');
+        $tipo_mov = $this->input->post('tipo_mov');
+        $serie = $this->input->post('serie');
+        $numero = str_pad($this->input->post('numero'), 8, "0", STR_PAD_LEFT);
+		$fecha = dateToMysql($this->input->post('fecha'));
+		$documento = $this->input->post('documento');
+		$docnum = $this->input->post('docnum');
+		$moneda = $this->input->post('t_moneda') != '' ? $this->input->post('t_moneda') : 1;
+		$rsocial = $this->input->post('rsocial');
+		$direccion = $this->input->post('direccion');
+        $email = $this->input->post('email');
+		$total = $this->input->post('total_total');
+		$total_igv = $this->input->post('total_igv');
+		$valor = $this->input->post('total_valor');
+		$sub = $this->input->post('total_sub');
+		$id_cliente  = $this->input->post('cliente');
+        
+        $descripcion = $this->input->post('descripcion');
+        
+
+        /*Variables axiliares*/
+        $idsopre = $this->input->post('sopre');
+        $json['from'] = $this->input->post('from')=='1'?true:false;
+        /**/
+
+        //Verifica si hay conflicto
+        $exist = $this->db->query("SELECT date_format(movi_fecha,'%d/%m/%Y') movi_fecha,movi_serie,movi_numero FROM movimiento WHERE movi_serie='{$serie}' AND (movi_numero='{$numero}' OR (movi_numero>'{$numero}' AND movi_fecha<'{$fecha}') OR (movi_numero<'{$numero}' AND movi_fecha>'{$fecha}' )) ".(empty($id)?'':" AND movi_id!={$id}") ." ORDER BY movi_fecha DESC LIMIT 1")->result();
+        if(count($exist)>0){
+            $text = "";
+            foreach($exist as $row){
+                $text .= "[{$row->movi_serie}-{$row->movi_numero}-{$row->movi_fecha}] ";
+            }
+            $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Hay conflictos con documentos: '.$text));
+        }
+        
+
+        $factura = array("movi_fecha"=> $fecha,
+    					"movi_comp_id" => $comprobante,
+                        "movi_comp_numero" => $num_compro,
+    					"movi_serie"=> $serie,
+    					"movi_numero" => $numero,
+    					"movi_prov_id"=> $id_cliente,
+                        "movi_prov_direccion" => $direccion,
+                        "movi_prov_rsocial" => $rsocial,
+                        "movi_prov_docu_id"=> $documento,
+    					"movi_prov_num_documento" => $docnum,
+                        "movi_prov_email" => $email,
+                        "movi_moneda" => $moneda,
+                        "movi_total"=> $total,
+                        "movi_valor"=> $valor,
+                        "movi_subtotal"=> $sub,
+                        "movi_igv"=> $total_igv,
+                        "movi_descripcion"=> $descripcion,
+                        "movi_clase"=> $clase,
+                        "movi_sucu_id"=> $sucursal,
+                        "movi_sucu_id_t"=> $sucursalt,
+                        "movi_tipo_id"=> $tipo_mov
+                    );
+        //detalles
+		$detalle = $this->input->post('detalle');
+		$tipo = $this->input->post('tipo');
+		$cantidad = $this->input->post('cantidad');
+		$valor = $this->input->post('valor');
+        $unidad = $this->input->post('unidad');
+		$precio = $this->input->post('precio');
+		$igv = $this->input->post('igv');
+		$importe = $this->input->post('importe');
+		$prod_id = $this->input->post('producto');
+
+        $clase = $clase == 1 ? 'INGRESO' : 'EGRESO';
+
+		if(empty($id)){
+			$this->db->trans_begin();
+			if (($meta = $this->Model_general->guardar_registro("movimiento", $factura)) == TRUE):
+	            for ($i=0; $i < count($detalle); $i++) { 
+	            	$item = array("deta_movi_id" => $meta['id'],
+                                "deta_unidad"=>$unidad[$i],
+                                "deta_descripcion" => $detalle[$i],
+                                "deta_cantidad" => $cantidad[$i],
+                                "deta_valor" => $valor[$i],
+	            				"deta_precio" => $precio[$i],
+	            				"deta_afec_id" => $tipo[$i],
+	            				"deta_igv" => $igv[$i],
+	            				"deta_importe" => $importe[$i],
+                                "deta_sucu_id" => $sucursal,
+	            				"deta_prod_id" => $prod_id[$i]
+	            		);
+
+                    if($reg = $this->Model_general->guardar_registro("movimiento_detalle", $item)==TRUE){
+                        
+                    }else{
+                        $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al guardar los datos'));
+                        $this->db->trans_rollback();
+                    }
+	            }
+	        else:
+	            $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al guardar los datos'));
+				$this->db->trans_rollback();
+	        endif;
+            $this->db->trans_commit();
+
+			$id = $meta['id'];           
+        }else{
+            $condicion_factura = "movi_id = ".$id;
+            $detalle_id = $this->input->post('deta_id');
+            $this->db->trans_begin();
+            if (($meta = $this->Model_general->guardar_edit_registro("movimiento", $factura, $condicion_factura)) == TRUE):
+
+                $this->db->select("deta_id, deta_cantidad, deta_precio, deta_prod_id");
+                $this->db->where('deta_movi_id',$id);
+                $this->db->from("movimiento_detalle");
+                $actuales = $this->db->get()->result();
+
+                foreach ($actuales as $key => $value) {
+                    if (!in_array($value->deta_id, $detalle_id)) {
+                        if($this->Model_general->borrar(array('deta_id' => $value->deta_id), 'movimiento_detalle')){
+                            switch ($clase) {
+                                case '1': $acct = 2; break;
+                                case '2': $acct = 1; break;
+                                default: $acct = $clase; break;
+                            }
+                            
+                        }else{
+                            $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al guardar los datos'));
+                            $this->db->trans_rollback();
+                        }
+                    }
+                }
+                for ($i=0; $i < count($detalle); $i++) { 
+
+                    $condicion_items = "deta_id = ".$detalle_id[$i];
+                    $item = array("deta_movi_id" => $id,
+                                "deta_unidad"=>$unidad[$i],
+                                "deta_descripcion" => $detalle[$i],
+                                "deta_cantidad" => $cantidad[$i],
+                                "deta_valor" => $valor[$i],
+                                "deta_precio" => $precio[$i],
+                                "deta_afec_id" => $tipo[$i],
+                                "deta_igv" => $igv[$i],
+                                "deta_importe" => $importe[$i],
+                                "deta_sucu_id" => $sucursal,
+                                "deta_prod_id" => $prod_id[$i]
+                        );
+
+                    if(empty($detalle_id[$i])){
+                        if($this->Model_general->guardar_registro("movimiento_detalle", $item) != false){
+                            
+                        }else{
+                            $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al guardar los datos'));
+                            $this->db->trans_rollback();
+                        }
+                    }else{
+                        $deta_cantidad = $this->db->select('deta_cantidad')->from('movimiento_detalle')->where('deta_id',$detalle_id[$i])->get()->row();
+
+                        $this->Model_general->guardar_edit_registro("movimiento_detalle", $item, $condicion_items);
+
+                    }
+                }
+            else:
+                $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al guardar los datos'));
+                $this->db->trans_rollback();
+            endif;
+            $this->db->trans_commit();
+        }
+        $this->Model_general->dieMsg(array_merge(array('exito'=>true,'mensaje'=>'','id'=>$id,'tipo'=>intval($comprobante)),$json));
+	}
+    /*public function actualizarStock($tipo, $tipo_id, $cantidad, $producto, $sucursal, $descripcion, $precio, $docu_id, $numero, $sucursalt,$caso){
+        if($tipo != 3){
+            $this->db->query("CALL enstock('{$tipo}', '{$tipo_id}', '{$cantidad}','{$producto}','{$sucursal}','{$descripcion}','{$this->session->userdata('authorized')}','{$precio}','{$docu_id}','{$numero}')");
+        }else{
+            if($caso == 1 || $caso == 4){
+                $this->db->query("CALL enstock('2', '{$tipo_id}', '{$cantidad}','{$producto}','{$sucursal}','{$descripcion}','{$this->session->userdata('authorized')}','{$precio}','{$docu_id}','{$numero}')");
+                $this->db->query("CALL enstock('1', '{$tipo_id}', '{$cantidad}','{$producto}','{$sucursalt}','{$descripcion}','{$this->session->userdata('authorized')}','{$precio}','{$docu_id}','{$numero}')");
+            }else if($caso == 2 || $caso == 3){
+                $this->db->query("CALL enstock('1', '{$tipo_id}', '{$cantidad}','{$producto}','{$sucursal}','{$descripcion}','{$this->session->userdata('authorized')}','{$precio}','{$docu_id}','{$numero}')");
+                $this->db->query("CALL enstock('2', '{$tipo_id}', '{$cantidad}','{$producto}','{$sucursalt}','{$descripcion}','{$this->session->userdata('authorized')}','{$precio}','{$docu_id}','{$numero}')");
+            }
+        }
+        
+    }
+    */
+    public function alm_confirm($id_movi){
+        $this->load->helper('Funciones');
+        $datos["movimiento"] = $this->db->select('tipo_tipo, movi_id')->from('movimiento')->join("kardex_producto_tipo", "tipo_id = movi_tipo_id")->where("movi_id", $id_movi)->get()->row();
+        $datos["productos"] = $this->Model_general->getProductosByMovimiento($id_movi);
+        $this->load->view('almacen/confirm_alm', $datos);
+    }
+    public function alm_guardar($id_movi){
+        $this->db->trans_start();
+        $productos = $this->Model_general->getProductosByMovimiento($id_movi);  
+        $movi = $this->db->where('movi_id', $id_movi)->get("movimiento")->row();
+        
+        if(!in_array($movi->movi_tipo_id, array(1,4,8))){
+            $accion = "EGRESO";
+            $tipo = '1';
+        }else{
+            $accion = "INGRESO";
+            $tipo = '2';
+        }
+        /*
+        echo $accion. ": ".$tipo;
+        exit(0);
+        */
+        foreach ($productos as $val) {
+            $costo = $val->deta_precio;
+            $precio = $val->deta_precio;
+            
+            $this->Model_general->afectar_almacen(
+				$val->deta_prod_id,
+				$costo,
+				$precio,
+				$val->deta_cantidad, 
+				$accion,
+				$movi->movi_sucu_id,
+				$movi->movi_comp_id,
+				$movi->movi_serie,
+				$movi->movi_numero,
+				$tipo,
+				$val->deta_descripcion
+				);
+        }
+        
+        $this->Model_general->guardar_edit_registro("movimiento", array("movi_almacen" => 'SI'), array('movi_id' => $id_movi));
+
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE){
+            $json['exito'] = false;
+            $json['mensaje'] = "Error al guardar los datos";
+        }else{
+            $json['exito'] = true;  
+            $json['mensaje'] = "Datos guardados con exito";
+        }
+        echo json_encode($json);
+    }
+
+   
+
+    function eliminar($id){
+
+
+        $this->db->trans_begin();
+
+        $comp = $this->Model_general->getVentaById($id);
+
+        $this->db->select("deta_id, deta_cantidad, deta_precio, deta_prod_id");
+        $this->db->where('deta_vent_id',$id);
+        $this->db->from("venta_detalle");
+        $actuales = $this->db->get();
+
+        if($this->Model_general->borrar(array('vent_id' => $id, "vent_fact_situ" => 1), 'venta')){
+            if($actuales->num_rows() > 0){
+                $actuales = $actuales->result();
+                foreach ($actuales as $key => $value) {
+
+                    if($this->Model_general->borrar(array('deta_id' => $value->deta_id), 'venta_detalle')){
+                        
+                        $stock_prod = $this->db->select('prod_stock')->from('producto')->where('prod_id',$value->deta_prod_id)->get()->row();
+                        $cant_stock = (int)$stock_prod->prod_stock + $value->deta_cantidad;
+                        $kardex = array("kard_prod_id" => $value->deta_prod_id,
+                                        "kard_compro_id" => '',
+                                        "kard_numero" => $comp->vent_serie." - ".$comp->vent_numero,
+                                        "kard_fecha" => date('Y-m-d'),
+                                        "kard_precio" => $value->deta_precio,
+                                        "kard_cantidad" => $value->deta_cantidad,
+                                        "kard_tipo" => 1,
+                                        "kard_tipo_id" => 6,
+                                        "kard_ingreso" => $value->deta_cantidad,
+                                        "kard_egreso" => 0.00,
+                                        "kard_descripcion" => 'Venta eliminada -> '.$comp->vent_serie." - ".$comp->vent_numero,
+                                        "kard_stock" => $cant_stock);
+                        $prod_condicion = "prod_id = ".$value->deta_prod_id;
+                       if($this->Model_general->guardar_registro("kardex_producto", $kardex)){
+                            if(!$this->Model_general->guardar_edit_registro("producto", array("prod_stock" => $cant_stock), $prod_condicion)){
+                                $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al eliminar los datos'));
+                                $this->db->trans_rollback();
+                            }
+                        }else{
+                            $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al eliminar los datos'));
+                            $this->db->trans_rollback();
+                        }
+                    }else{
+                        $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al eliminar los datos'));
+                        $this->db->trans_rollback();
+                    }
+                }
+            }
+        }else{
+            $this->Model_general->dieMsg(array('exito'=>false,'mensaje'=>'Error al eliminar los datos'));
+            $this->db->trans_rollback();
+        }
+        
+        $this->db->trans_commit();
+        die(json_encode(array('exito'=>true,'mensaje'=>'')));
+    }
+
+
+ 
+
+    public function getNumTextual($total,$moneda){
+        $this->load->library('numl');
+        $readnumber = $this->numl->NUML(floor($total));
+        $nada = explode('.',number_format($total,2, '.', ''));
+        $nada = $nada[1];
+        $total_textual = strtoupper($readnumber) . ' CON ' . $nada . '/100 ' . (($moneda == "SOLES") ? " SOLES" : "DOLARES AMERICANOS");
+        return $total_textual;
+    }
+
+	public function enviar_comprobante($id=0,$correo,$body=""){
+        /*$fp = fsockopen('tls://smtp.gmail.com:465');
+        if(!$fp)
+        {
+            echo 'Unable to connect';
+        }
+        else
+        {
+            $response = fgets($fp, 256);
+            echo 'Response: ' . $response;
+        }
+        exit(0);*/
+        $this->load->library('Mymail');
+
+        $documento = $this->genera_pdf($id);
+        $this->genera_pdf($id);
+
+        $configuracion = $this->db->query("SELECT * from configuracion where conf_id = 1")->row();
+        $venta = $this->db->query("SELECT vent_comp_id,vent_serie,vent_numero,DATE_FORMAT(vent_fecha,'%d/%m/%Y') vent_fecha,vent_total,vent_file from venta where vent_id={$id}")->row();
+        $xml = file_get_contents("files/FIRMA/{$venta->vent_file}.xml");
+
+        $mail = new PHPMailer() ;
+		
+		$bodye = '
+		<br>
+<br>
+Para descargar el comprobante electrónico, seguir el siguiente enlace.
+<br>
+<br>
+<a href="'.base_url().'Inicio/visor/'.$id.'/'.md5($configuracion->conf_ruc.$id."MCFACT").'">Ver Comprobante</a>
+<br>
+<br>
+Si desea consultar los comprobantes individuales o por empresa, siga el siguiente enlace.
+<br>
+<br>
+<a href="'.base_url().'Inicio">Consultar comprobantes</a>
+<br>
+<br>
+';
+		
+        $body = empty($body)?$this->configuracion->conf_mail_body.$bodye:$body.$bodye;
+
+        $mail->IsSMTP();
+        $mail->Timeout  =   10;
+        $mail->Host     = $configuracion->conf_mail_host;
+        $mail->Port     = $configuracion->conf_mail_port;  
+        $mail->SMTPAuth = true;
+        $mail->SMTPSecure = "tls"; 
+        $mail->SMTPDebug  = 0; 
+        $mail->CharSet = "UTF-8";
+        $mail->From     = $configuracion->conf_mail_user;
+        $mail->FromName = $configuracion->conf_rsocial;
+        $mail->Subject  = $this->configuracion->conf_mail_subject;
+        $mail->AltBody  = "Adjunto"; 
+        $mail->MsgHTML($body);
+        $mail->AddStringAttachment($documento,$venta->vent_file.".pdf",'base64');
+        $mail->AddStringAttachment($xml,$venta->vent_file.".xml",'base64');
+
+        $correos = preg_split('/[,;]/',$correo);
+        foreach($correos as $correo){
+            $mail->AddAddress(trim($correo),'');
+        }
+        $mail->SMTPAuth = true;
+
+        $mail->Username = $configuracion->conf_mail_user;
+        $mail->Password = $configuracion->conf_mail_password; 
+        
+        if($mail->Send()){           
+            $this->db->query("UPDATE venta SET vent_email_send=1 WHERE vent_id='{$id}'");
+            echo json_encode(array('exito'=>true,'mensaje'=>"Envio con exito, ¡Gracias!"));
+        }else{
+            echo json_encode(array('exito'=>false,'mensaje'=>$mail->ErrorInfo));
+        }
+        
+    }
+    
+    public function confirm_correo($id){
+        $correo = $this->input->post("correo");
+        $body = $this->input->post("body");
+        $venta = $this->db->query("SELECT vent_clie_email from venta where vent_id='$id'")->row();
+        $datos['venta'] = $venta;
+        $datos['id'] = $id;
+        if(!isset($correo)){
+            $this->load->view('Venta/confirm_correo', $datos);
+        }else{
+            $this->enviar_comprobante($id,$correo,$body);
+        }
+    }
+
+    public function enviarcorreo($id){
+        $venta = $this->db->query("SELECT vent_clie_email from venta where vent_id='$id'")->row();
+        $this->enviar_comprobante($id,$venta->vent_clie_email,"");
+    }
+
+
+	public function Sunat(){
+		$this->load->view('header');
+        $this->load->view('menu');
+        $this->load->view('Venta/Sunat');
+        $this->load->view('footer');
+	}
+
+   
+	function reporte_excel(){
+        $hasta = $this->input->get('hasta');
+        $desde = $this->input->get('desde');
+        $tipo = $this->input->get('tipo');
+        $search = $this->input->get('search');
+        
+        $this->db->select("DATE_FORMAT(V.vent_fecha,'%d/%m/%Y') AS fecha, COMP.comp_abrev AS ctipo, SIT.grup_nombre as situacion, V.vent_serie AS serie, V.vent_numero AS numero, DOC.docu_nombre as documento, V.vent_clie_num_documento as docid_nro, V.vent_clie_rsocial AS rsocial, IF(V.vent_moneda ='SOLES','S','D') as moneda,  V.vent_pagado as pagado,V.vent_total AS total, V.vent_descripcion as vdesc, PT.tipo_nombre as tpago, GROUP_CONCAT(DISTINCT VD.deta_descripcion ORDER BY VD.deta_id ASC) AS detalle");
+        $this->db->from("venta V");
+        $this->db->join("maestra_comprobantes COMP","COMP.comp_id = V.vent_comp_id");
+        $this->db->join("venta_detalle VD","VD.deta_vent_id = V.vent_id");
+        $this->db->join("maestra_documentos DOC","DOC.docu_id = V.vent_clie_docu_id");
+        $this->db->join("factura_situacion_grupo SIT","SIT.grup_id = V.vent_fact_gsitu");
+        $this->db->join("pago_tipo PT","PT.tipo_id = V.vent_tipo_pago", "left");
+        $this->db->where("V.vent_fecha BETWEEN '$desde' AND '$hasta'".($tipo != false?" AND V.vent_comp_id = '$tipo'":"")." ".($moneda != '0'?"AND V.vent_moneda = '$moneda'":"")." ".($situacion != ''?"AND SIT.situ_grup_id = '$situacion'":"")." ".($search != ""? " AND (V.vent_clie_rsocial LIKE '%$search%' OR V.vent_serie LIKE '%$search%' OR V.vent_numero LIKE '%$search%')":""));
+        $this->db->group_by('V.vent_id');
+        $this->db->order_by("V.vent_comp_id","ASC");
+        $this->db->order_by("V.vent_serie","ASC");
+        $this->db->order_by("V.vent_numero","ASC");
+        $documentos = $this->db->get()->result();
+
+        $this->load->library("Excel");
+        $excel = new Excel();
+        $objPHPExcel = $excel->excel_init();
+        //--------------------  Estilos  ----------------------------
+        $bordeb = array(
+            'borders' => array(
+                'bottom' => array(
+                    'style' => PHPExcel_Style_Border::BORDER_THIN
+                )
+            )
+        );
+        $bordes = array(
+            'borders' => array(
+                'allborders' => array(
+                    'style' => PHPExcel_Style_Border::BORDER_THIN,
+                )
+            ));
+
+        $fillgray = array(
+            'fill' => array(
+                'type' => PHPExcel_Style_Fill::FILL_SOLID,
+                'color' => array('rgb' => 'E4E7E9')
+            )
+        );
+        
+        $objPHPExcel->getActiveSheet()->getStyle('D')->applyFromArray($fillgray);
+        $objPHPExcel->getActiveSheet()->getStyle('H')->applyFromArray($fillgray);
+
+        $objPHPExcel->getActiveSheet()->getStyle('J')->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('CEF1C9');
+        $objPHPExcel->getActiveSheet()->getStyle('R')->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('FFF9CE');
+
+        $objPHPExcel->getActiveSheet()
+                ->setCellValue('A1', 'FECHA')
+                ->setCellValue('B1', 'TIPO')
+                ->setCellValue('C1', 'SERIE')
+                ->setCellValue('D1', 'NUMERO')
+                ->setCellValue('E1', 'DOCUMENTO')
+                ->setCellValue('F1', 'NUMERO')
+                ->setCellValue('G1', 'RAZON SOCIAL')
+                ->setCellValue('H1', 'MONEDA')
+                ->setCellValue('I1', 'TOTAL')
+                ->setCellValue('J1', 'SITUACION')
+                ->setCellValue('K1', 'DETALLE');
+        
+        $objPHPExcel->getActiveSheet()->getStyle('F')->getNumberFormat()->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_TEXT);
+        $objPHPExcel->getActiveSheet()->getStyle('D')->getNumberFormat()->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_TEXT);      
+        $objPHPExcel->getActiveSheet()->freezePane('A2');
+        
+        $ini = 3;
+        $index = 0;
+        
+        foreach($documentos as $fila){
+            $nro = $index+$ini;
+            $index++;
+            $objPHPExcel->getActiveSheet()
+                        ->setCellValue("A$nro", $fila->fecha)
+                        ->setCellValue("B$nro", $fila->ctipo)
+                        ->setCellValue("C$nro", $fila->serie)
+                        ->setCellValue("D$nro", $fila->numero)
+                        ->setCellValue("E$nro", $fila->documento)
+                        ->setCellValue("F$nro", $fila->docid_nro)
+                        ->setCellValue("G$nro", $fila->rsocial)
+                        ->setCellValue("H$nro", $fila->moneda)
+                        ->setCellValue("I$nro", $fila->total)
+                        ->setCellValue("J$nro", $fila->situacion)
+                        ->setCellValue("K$nro", $fila->detalle);
+            }
+            foreach(range('A','Q') as $nro)
+            {
+                $objPHPExcel->getActiveSheet()->getColumnDimension($nro)->setAutoSize(true);
+            }
+        
+        $fin = $index+$ini-1;
+        $objPHPExcel->getActiveSheet()->getStyle("J$ini:J$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        $objPHPExcel->getActiveSheet()->getStyle("A$ini:A$fin")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+        
+        $excel->excel_output($objPHPExcel, 'COMPROBANTES '.$desde." - ".$hasta);
+    }
+}

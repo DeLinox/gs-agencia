@@ -1,0 +1,43 @@
+$(document).ready(function(){
+	$('form').submit(function(e){
+		e.preventDefault();
+		llenarTabla($(this));
+	});
+	llenarTabla($('form'));
+})
+function llenarTabla($this) {
+	var url = $("#nameurl").val()+'/true';
+	$.ajax({
+        dataType: "json",
+        url: url,
+        type: "POST",
+        data: $this.serialize(),
+        success: function(resp){
+            $.each(resp, function( i, value ) {
+                $html = "";
+                $html += '<table class="table">';
+                $.each(value, function( j, price ) {
+                    
+                    if(j != "res"){
+                        $html += '<tr>';
+                        $html += '<td class="col-sm-6">'+j+'</td>';
+                        $html += '<td class="text-right">'+price.s_cobrado+'</td>';
+                        $html += '<td class="text-right">'+price.s_saldo+'</td>';
+                        $html += '<td class="text-right">'+price.s_total+'</td>';
+                        $html += '<td class="text-right">'+price.d_cobrado+'</td>';
+                        $html += '<td class="text-right">'+price.d_saldo+'</td>';
+                        $html += '<td class="text-right">'+price.d_total+'</td>';
+                        $html += '</tr>';    
+                    }else{
+                        $.each(price, function( k, add ) {
+                            console.log(k);
+                            $('#tbl-'+i).find('.'+k).text(add);
+                        });
+                    }
+                });
+                $html += '</table>';
+                $('#'+i).html($html);
+            });
+        }
+    })
+}

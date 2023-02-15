@@ -1,0 +1,10 @@
+$(document).ready(function(){
+	$("input[name='pagado']").change(function(){
+		if(esNumeroPositivo($(this).val())){
+			$(this).dval($(this).val());
+		}else{
+			$(this).dval('0.00');
+		}
+	})
+	$("input[name='saldo']").dval($("input[name='saldo']").val());
+})

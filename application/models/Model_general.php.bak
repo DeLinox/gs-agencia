@@ -1,0 +1,326 @@
+<?php
+
+class Model_general extends CI_Model {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->database();
+    }
+
+    function guardar_edit_registro($tabla, $datas, $where) {
+
+        $this->db->where($where);
+        $this->db->update($tabla, $datas);
+        if ($this->db->trans_status() === FALSE) {
+            return FALSE;
+        } else {
+            return TRUE;
+        }
+    }
+
+    function dieMsg($json){
+        echo json_encode($json);
+        exit;
+    }
+
+    function guardar_registro($tabla, $datas) {
+        if (isset($datas)) {
+            $this->db->set($datas);
+            $this->db->insert($tabla);
+            $id = $this->db->insert_id();
+            if ($this->db->trans_status() === FALSE) {
+                return FALSE;
+            } else {
+                return $datos = array("id" => $id);
+            }
+        } else {
+            return FALSE;
+        }
+    }
+
+    function ultimo_registro($datos, $id, $tabla, $where = 0) {
+        $this->db->select($datos);
+        $this->db->from($tabla);
+        $this->db->order_by($id, "desc");
+        $this->db->limit(1);
+        if ($where != 0):
+            $this->db->where($where);
+        endif;
+        $consulta = $this->db->get();
+        if ($consulta->num_rows() > 0) {
+            return $consulta->row();
+        } else {
+            return $object = (object) array($datos => null);
+        }
+    }
+
+    function select2($tabla, $search,$order=null) {
+        $this->db->select("sql_calc_found_rows *", FALSE);
+        if (!empty($search))
+            $this->db->like($search);
+        $this->db->from($tabla);
+        if($order!=null)$this->db->order_by($order);
+        $consulta = $this->db->get();
+        //if($consulta->num_rows()> 0){
+        $query = $this->db->query('SELECT FOUND_ROWS() AS total_count');
+        $total_count = $query->row()->total_count;
+        $response = array("total_count" => $total_count, "items" => $consulta->result());
+        return $response;
+        /* }
+          else{
+          return FALSE;
+          } */
+    }
+
+    public function borrar($where, $tabla) {
+
+        $this->db->trans_begin();
+        $this->db->where($where);
+        $this->db->delete($tabla);
+        if ($this->db->trans_status() === FALSE) {
+            $this->db->trans_rollback();
+            return FALSE;
+        } else {
+            $this->db->trans_commit();
+            return TRUE;
+        }
+    }
+
+    function enum_valores($tabla, $campo) {
+        $consulta = $this->db->query("SHOW COLUMNS FROM $tabla LIKE '$campo'");
+        if ($consulta->num_rows() > 0) {
+            $consulta = $consulta->row();
+            $array = explode(",", str_replace(array("enum", "'", "(", ")"), "", $consulta->Type));
+            foreach ($array as $key) {
+                $array2[$key] = $key;
+            }
+            return $array2;
+        } else {
+            return FALSE;
+        }
+    }
+
+    function getComprobantes($id = 0) {
+
+        if ($id != 0) {
+            $this->db->where($id);
+            $consulta = $this->db->get('maestra_comprobantes');
+            if ($consulta->num_rows() > 0) {
+                $consulta = $consulta->row();
+                return $consulta;
+            } else {
+                return FALSE;
+            }
+        } else {
+            $this->db->select("comp_id,comp_nombre");
+            $this->db->from("maestra_comprobantes");
+            $consulta = $this->db->get();
+            if ($consulta->num_rows() > 0) {
+                return $consulta->result();
+            } else {
+                return FALSE;
+            }
+        }
+    }
+
+    function getDocumentos($id = 0) {
+
+        if ($id != 0) {
+            $this->db->where($id);
+            $consulta = $this->db->get('maestra_documentos');
+            if ($consulta->num_rows() > 0) {
+                $consulta = $consulta->row();
+                return $consulta;
+            } else {
+                return FALSE;
+            }
+        } else {
+            $this->db->select("docu_id,docu_nombre");
+            $this->db->from("maestra_documentos");
+            $consulta = $this->db->get();
+            if ($consulta->num_rows() > 0) {
+                return $consulta->result();
+            } else {
+                return FALSE;
+            }
+        }
+    }
+
+    function getData($table, $datos, $where=null) {
+        $this->db->select(implode(",", $datos));
+        if($where != null)
+            $this->db->where($where);
+        $this->db->from($table);
+        $consulta = $this->db->get();
+        return $consulta->result();
+    }
+    
+    function getOptions($table,$datos,$vacio=FALSE){
+        return select_options($this->getData($table,$datos),$datos,$vacio);
+    }
+    function getOptionsWhere($table,$datos,$where,$vacio=FALSE){
+        return select_options($this->getData($table,$datos,$where),$datos,$vacio);
+    }
+
+    function getVentaById($id=''){
+        $this->db->from('venta');
+        $this->db->join('maestra_comprobantes','comp_id = vent_comp_id');
+        $this->db->join('maestra_documentos','docu_id = vent_clie_docu_id');
+        $this->db->where('vent_id',$id);
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->row();
+        }else{
+            return false;
+        }
+    }
+    function getRemisionById($id=''){
+        $this->db->from('remision');
+        $this->db->join('maestra_documentos','docu_id = remi_clie_docu_id');
+        $this->db->join('motivo_traslado','remi_motivo_tras = tras_id');
+        $this->db->where('remi_id',$id);
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->row();
+        }else{
+            return false;
+        }
+    }
+    function getDataFromUbigeo($ubigeo=''){
+        $this->db->select('DE.dep_denominacion as departamento,P.prov_denominacion as provincia, DI.dist_id, DI.dist_denominacion');
+        $this->db->from('distrito DI');
+        $this->db->join('provincia P', 'DI.dist_id_prov = P.prov_id');
+        $this->db->join('departamento DE', 'P.prov_id_dep = DE.dep_id');
+        $this->db->where('DI.dist_id', $ubigeo);
+        $consulta = $this->db->get()->row();
+        return $consulta;
+    }
+
+    function getMovimientoById($id=''){
+        
+        $this->db->from('movimiento');
+        $this->db->join('maestra_comprobantes','comp_id = movi_comp_id');
+        $this->db->join('maestra_documentos','docu_id = movi_prov_docu_id');
+        $this->db->where('movi_id',$id);
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->row();
+        }else{
+            return false;
+        }
+    }
+
+
+    function getCotizacionById($id=''){
+        
+        $this->db->from('cotizacion');
+        $this->db->join('maestra_documentos','docu_id = coti_clie_docu_id');
+        $this->db->where('coti_id',$id);
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->row();
+        }else{
+            return false;
+        }
+    }
+    function getProductosByVenta($id=''){
+        $this->db->select('VD.*, P.prod_nombre');
+        $this->db->from('venta_detalle as VD');
+        $this->db->join('producto as P', 'VD.deta_prod_id = P.prod_id');
+        $this->db->where('VD.deta_vent_id',$id);
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->result();
+        }else{
+            return false;
+        }
+    }
+    function getProductosByRemision($id=''){
+        $this->db->select('VD.*, P.prod_nombre');
+        $this->db->from('remision_detalle as VD');
+        $this->db->join('producto as P', 'VD.deta_prod_id = P.prod_id');
+        $this->db->where('VD.deta_remi_id',$id);
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->result();
+        }else{
+            return false;
+        }
+    }
+    function getProductosByMovimiento($id=''){
+        $this->db->from('movimiento_detalle');
+        $this->db->where('deta_movi_id',$id);
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->result();
+        }else{
+            return false;
+        }
+    }
+
+    function getProductosByCotizacion($id=''){
+        $this->db->from('cotizacion_detalle');
+        $this->db->where('deta_coti_id',$id);
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->result();
+        }else{
+            return false;
+        }
+    }
+    function getVentaSaldo($id=''){
+        $this->db->select('V.vent_sucu_id, V.vent_id, V.vent_serie, V.vent_numero,V.vent_total, V.vent_moneda, if(SUM(P.pago_monto)<>"",SUM(P.pago_monto),0.00) AS cancelado');
+        $this->db->from('venta as V');
+        $this->db->where('V.vent_id',$id);
+        $this->db->join('pago as P','P.pago_vent_id = V.vent_id','left');
+        $this->db->group_by('V.vent_id'); 
+        $query = $this->db->get();
+        if($query->num_rows() > 0 ){
+            return $query->row();
+        }else{
+            return false;
+        }
+    }
+    function THS($arr) {
+        $str = "";
+        foreach ($arr as $cod => $val) {
+            if(!preg_match('/DT_/',$val['dt']))
+            $str .= '<th class="ths">' . $val['dt'] . '</th>';
+        }
+        return $str;
+    }
+
+	function genDataTable($id,$columns,$withcheck=false,$responsive=false){
+		if($responsive) $class = "table table-striped table-bordered dt-responsive";
+		else $class = "table table-striped table-bordered";
+		return '<table id="'.$id.'" wch="'.$withcheck.'" cellpadding="0" cellspacing="0" border="0" width="100%" class="'.$class.'">
+				<thead>
+					<tr>
+						'.($withcheck?'<th></th>':'').$this->THS($columns).'
+					</tr>
+				</thead>
+			</table>';
+	}
+    function getSucuID($id_user){
+        $this->db->select('suus_suco_id AS id');
+        $this->db->from('sucursal_usuario');
+        $this->db->where('suus_usua_id', $id_user);
+        $consulta = $this->db->get()->row();
+        return $consulta;
+    }
+	
+	function check_captcha($where){
+
+      $this->db->where($where);
+      $this->db->limit(1); 
+      $consulta=$this->db->get('captcha');
+
+      if($consulta->num_rows()> 0){
+        return TRUE;
+      }
+      else
+      {
+        return FALSE;
+      }
+    }
+}

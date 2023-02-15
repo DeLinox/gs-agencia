@@ -1,0 +1,1066 @@
+<?php
+
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Reporte extends CI_Controller {
+
+    function __construct() {
+        parent::__construct();
+        
+        if(!$this->session->userdata('authorized') || $this->session->userdata('authorizedadmin') != 2){
+            redirect(base_url()."login");
+        }
+        $this->load->database();
+        $this->configuracion = $this->db->query("SELECT * FROM configuracion")->row();
+        $this->load->model("Model_general");
+        $consult = $this->db->from("venta")->where("vent_pagado = 'NO'")->get()->result();
+        $this->pendientes = count($consult);
+    }
+    public function ventas() {
+        $this->load->helper('Funciones');
+        $this->load->database();
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+
+        $json = isset($_GET['json']) ? $_GET['json'] : false;
+        $cur_sucu = $this->Model_general->getSucuID($this->session->userdata('authorized'));
+        $columns = array(
+            array('db' => 'vent_clie_rsocial',  			'dt' => 'Cliente',     		"field" => "vent_clie_rsocial"),
+            //array('db' => 'comp_nombre',   				'dt' => 'Comprobante',     	"field" => "comp_nombre"),
+            array('db' => 'vent_fecha',   				'dt' => 'Fecha',     		"field" => "vent_fecha"),
+            array('db' => "CONCAT(vent_serie,'-',vent_numero)", 'dt' => 'Número',      		"field" => "CONCAT(vent_serie,'-',vent_numero)"),
+            array('db' => 'vent_total',          			'dt' => 'Total',       		"field" => "vent_total"),
+            array('db' => 'vent_pagado',          			'dt' => 'Estado',       		"field" => "vent_pagado"),            
+            array('db' => 'vent_pago_obs',          			'dt' => 'Pago Obs',       		"field" => "vent_pago_obs"),                        
+            //array('db' => 'vent_fact_gene',				'dt' => 'SNTGEN',       	"field" => "vent_fact_gene"),
+            //array('db' => 'vent_fact_envi',				'dt' => 'SNTENVI',       	"field" => "vent_fact_envi"),
+            array('db' => 'usua_nombres',				'dt' => 'Usuario',       	"field" => "usua_nombres"),            
+            //array('db' => 'vent_fact_obse',				'dt' => 'SNTOBSE',       	"field" => "vent_fact_obse"),
+            array('db' => 'vent_id',             			'dt' => 'DT_RowId',    		"field" => "vent_id"),
+            array('db' => 'vent_fact_situ',             		'dt' => 'DT_Estado',    	"field" => "vent_fact_situ"),
+            array('db' => 'vent_email_send',             		'dt' => 'DT_EmailSend',		"field" => "vent_email_send"),
+            array('db' => 'vent_pagado',                        	'dt' => 'DT_Pagado',        	"field" => "vent_pagado")
+        );
+        
+        $mon = '';
+
+        if ($json) {
+
+            $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+            $table = 'venta';
+            $primaryKey = 'vent_id';
+
+            $sql_details = array(
+                'user' => $this->db->username,
+                'pass' => $this->db->password,
+                'db' => $this->db->database,
+                'host' => $this->db->hostname
+            );
+
+            $condiciones = array();
+
+            $joinQuery = "FROM venta JOIN maestra_comprobantes ON comp_id=vent_comp_id LEFT JOIN usuario ON usua_id = vent_usu_id";
+            $where = "";
+            if (!empty($_POST['desde'])&&!empty($_POST['hasta'])){
+                $condiciones[] = "vent_fecha >='".$_POST['desde']."' AND vent_fecha <='".$_POST['hasta']."'";
+            }
+            if (!empty($_POST['comprobantes']))
+                $condiciones[] = "vent_comp_id='".$_POST['comprobantes']."'";
+            //$condiciones[] = "vent_comp_id='".$idcomp."'";
+            //$condiciones[] = "vent_sucu_id ='".$cur_sucu->id."'";
+
+
+           if (!empty($_POST['moneda']))
+                $condiciones[] = "vent_moneda='".$_POST['moneda']."'";
+            if (!empty($_POST['estado']))
+                $condiciones[] = "vent_pagado='".$_POST['estado']."'";
+
+            
+            $where = count($condiciones) > 0 ? implode(' AND ', $condiciones) : "";
+            echo json_encode(
+                    $this->ssp->simple($_POST, $sql_details, $table, $primaryKey, $columns, $joinQuery, $where)
+            );
+            exit(0);
+        }
+        $monedas = $this->Model_general->enum_valores('venta','vent_moneda');
+        $totales = array();
+	foreach ($monedas as $i => $m) {
+		$totales[$i]['moneda'] = $m;
+		$this->db->select('SUM(vent_total) AS total');
+		$this->db->from('venta');
+		$this->db->where('vent_moneda', $m);
+		$totales[$i]['total'] = $this->db->get()->row()->total;
+		
+        }
+        $datos['total'] = $this->db->select('SUM(vent_total) AS total')->from('venta')->get()->row();
+        $datos["comprobantes"] = $this->Model_general->getOptions('maestra_comprobantes', array("comp_id", "comp_nombre"),'* Comprobantes');
+        $datos["moneda"] = array_merge(array('* Monedas'),$this->Model_general->enum_valores('venta','vent_moneda'));
+        $datos['columns'] = $columns;
+
+        $datos['titulo'] = "Comprobantes";
+        //$datos['idcomp'] = $idcomp;
+
+        $this->cssjs->set_path_js(base_url() . "assets/js/Reporte/");
+        $this->cssjs->add_js('list_ventas');
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('reporte/list_ventas', $datos);
+        $this->load->view('footer');
+    }
+    public function getVentas(){
+    	$monedas = $this->Model_general->enum_valores('venta','vent_moneda');
+    	$pagado = $this->Model_general->enum_valores('venta','vent_pagado');	
+    	
+    	$total = array();
+    	foreach($monedas as $m){
+    		$tmp = array();
+    		foreach($pagado as $p){
+    			$this->db->select('SUM(vent_total) AS total');
+    			$this->db->from('venta');
+    			if($this->input->post('search')['value'] != '')
+    				$this->db->like('vent_clie_rsocial', $this->input->post('search')['value']);
+    			if($this->input->post('comprobantes') != '')    				
+    				$this->db->where('vent_comp_id', $this->input->post('comprobantes'));
+    			if($this->input->post('desde') != '' && $this->input->post('hasta') != ''){
+    				$this->db->where('vent_fecha >=', $this->input->post('desde'));
+				$this->db->where('vent_fecha <=', $this->input->post('hasta'));
+			}
+			if($this->input->post('estado') != ''){
+				$this->db->where('vent_pagado', $this->input->post('estado'));
+			}else{
+				$this->db->where('vent_pagado', $p);
+			}
+			if($this->input->post('moneda') != '0'){
+				$this->db->where('vent_moneda', $this->input->post('moneda'));
+			}else{
+				$this->db->where('vent_moneda', $m);
+			}
+    			
+ 			$this->db->where('vent_moneda', $m);   				
+    			$this->db->where('vent_pagado', $p);
+    			$consulta = $this->db->get()->row();
+    			
+    			$tmp[$p] = $consulta->total == '' ? '0.00' : $consulta->total;   
+	    	}
+
+	    	$total[] = array_merge(array("MONEDA" => $m), $tmp);
+	    	
+    	}
+    	$html = "";
+    	$si = 0;
+    	$no = 0;
+    	
+    	foreach($total as $t){
+    		$si += $t['SI'];
+    		$no += $t['NO'];
+    		$sum = $t['SI']+$t['NO'];
+    		$html .= "<tr><th>".$t['MONEDA']."</th><td>".$t['SI']."</td><td>".$t['NO']."</td><td>".$sum."</td></tr>";
+    	}
+    	$suma = $si + $no;
+    	$html .= '<tr><th>TOTAL</th><th>'.$si.'</th><th>'.$no.'</th><th>'.$suma.'</th></tr>';
+    	echo json_encode(array('html' => $html));
+    }
+    public function listado() {
+        $this->load->helper('Funciones');
+        $this->load->database();
+        //$this->load->library('Framework');
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+        
+        $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+        $columns = array(
+            array('db' => 'clie_id',            'dt' => 'ID',               "field" => "clie_id"),
+            array('db' => 'clie_rsocial',       'dt' => 'Cliente',          "field" => "clie_rsocial"),
+            array('db' => 'docu_nombre',        'dt' => 'Documento',        "field" => "docu_nombre"),
+            array('db' => 'clie_docnum',        'dt' => 'Numero',           "field" => "clie_docnum"),
+            array('db' => 'clie_direccion',     'dt' => 'Direccion',        "field" => "clie_direccion"),
+            array('db' => 'clie_email',         'dt' => 'Email',            "field" => "clie_email"),
+            array('db' => 'clie_id',            'dt' => 'DT_RowId',         "field" => "clie_id")
+        );
+
+        if ($json) {
+
+            $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+            $table = 'cliente';
+            $primaryKey = 'clie_id';
+
+            $sql_details = array(
+                'user' => $this->db->username,
+                'pass' => $this->db->password,
+                'db' => $this->db->database,
+                'host' => $this->db->hostname
+            );
+
+            $condiciones = array();
+            $joinQuery = "FROM cliente INNER JOIN maestra_documentos ON clie_docu_id=docu_id";
+            $where = "";
+            $condiciones[]="";
+
+            $where = count($condiciones) > 0 ? implode(' AND ', $condiciones) : "";
+            echo json_encode(
+                    $this->ssp->simple($_POST, $sql_details, $table, $primaryKey, $columns, $joinQuery, $where)
+            );
+            exit(0);
+        }
+        $datos['columns'] = $columns;
+
+        $this->cssjs->set_path_js(base_url() . "assets/js/cliente/");
+        $this->cssjs->add_js('listado');
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('Cliente/listado', $datos);
+        $this->load->view('footer');
+    }
+    public function ventas_cliente() {
+        $this->load->helper('Funciones');
+        $this->load->database();
+        //$this->load->library('Framework');
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+        
+        $json = isset($_GET['json']) ? $_GET['json'] : false;
+        $cur_sucu = $this->Model_general->getSucuID($this->session->userdata('authorized'));
+        $columns = array(
+            array('db' => 'vent_id',                            'dt' => 'ID',               "field" => "vent_id"),
+            array('db' => 'comp_abrev',                          'dt' => 'tipo',      "field" => "comp_abrev"),
+            array('db' => "CONCAT(vent_serie,'-',vent_numero)", 'dt' => 'Número',           "field" => "CONCAT(vent_serie,'-',vent_numero)"),
+            array('db' => 'vent_fecha',                         'dt' => 'Fecha',            "field" => "vent_fecha"),
+            array('db' => 'vent_moneda',                         'dt' => 'Mondeda',            "field" => "vent_moneda"),
+            array('db' => 'vent_total',                         'dt' => 'Total',            "field" => "vent_total"),
+            array('db' => 'vent_clie_rsocial',                  'dt' => 'Cliente',          "field" => "vent_clie_rsocial"),
+
+            array('db' => 'vent_id',                            'dt' => 'DT_RowId',         "field" => "vent_id"),
+        );
+
+        if ($json) {
+
+            $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+            $table = 'venta';
+            $primaryKey = 'vent_id';
+
+            $sql_details = array(
+                'user' => $this->db->username,
+                'pass' => $this->db->password,
+                'db' => $this->db->database,
+                'host' => $this->db->hostname
+            );
+
+            $condiciones = array();
+
+            $joinQuery = "FROM venta JOIN maestra_comprobantes ON comp_id=vent_comp_id";
+            $where = "";
+            if (!empty($_POST['desde'])&&!empty($_POST['hasta'])){
+                $condiciones[] = "vent_fecha >='".$_POST['desde']."' AND vent_fecha <='".$_POST['hasta']."'";
+            }
+            if (!empty($_POST['comprobantes']))
+                $condiciones[] = "vent_comp_id='".$_POST['comprobantes']."'";
+            if (!empty($_POST['cliente']))
+                $condiciones[] = "vent_clie_id='".$_POST['cliente']."'";
+            //$condiciones[] = "vent_comp_id='".$idcomp."'";
+
+           /* if (!empty($_POST['moneda']))
+                $condiciones[] = "vent_moneda='".$_POST['moneda']."'";
+            if (!empty($_POST['archivo']))
+                $condiciones[] = "vent_genera_archivo='".$_POST['archivo']."'";*/
+
+            
+            $where = count($condiciones) > 0 ? implode(' AND ', $condiciones) : "";
+            echo json_encode(
+                    $this->ssp->simple($_POST, $sql_details, $table, $primaryKey, $columns, $joinQuery, $where)
+            );
+            exit(0);
+        }
+        $datos["comprobantes"] = $this->Model_general->getOptions('maestra_comprobantes', array("comp_id", "comp_nombre"),'* Comprobantes');
+        $datos["moneda"] = array_merge(array('* Monedas'),$this->Model_general->enum_valores('venta','vent_moneda'));
+        $datos["archivo"] = array_merge(array('* Envios'),$this->Model_general->enum_valores('venta','vent_genera_archivo'));
+        $datos["clientes"] = $this->Model_general->getOptions('cliente', array("clie_id", "clie_rsocial"),'* Clientes');
+        $datos['columns'] = $columns;
+
+        $datos['titulo'] = "Ventas por Cliente";
+        //$datos['idcomp'] = $idcomp;
+
+        $this->cssjs->set_path_js(base_url() . "assets/js/Reporte/");
+        $this->cssjs->add_js('list_vCliente');
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('reporte/list_vCliente', $datos);
+        $this->load->view('footer');
+    }
+    public function ventas_empleado() {
+        $this->load->helper('Funciones');
+        $this->load->database();
+        //$this->load->library('Framework');
+        $this->load->library('Ssp');
+        $this->load->library('Cssjs');
+        
+        $json = isset($_GET['json']) ? $_GET['json'] : false;
+        $cur_sucu = $this->Model_general->getSucuID($this->session->userdata('authorized'));
+        $columns = array(
+            array('db' => 'vent_id',                            'dt' => 'ID',               "field" => "vent_id"),
+            array('db' => 'comp_abrev',                          'dt' => 'tipo',      "field" => "comp_abrev"),
+            array('db' => "CONCAT(vent_serie,'-',vent_numero)", 'dt' => 'Número',           "field" => "CONCAT(vent_serie,'-',vent_numero)"),
+            array('db' => 'vent_fecha',                         'dt' => 'Fecha',            "field" => "vent_fecha"),
+            array('db' => 'vent_moneda',                         'dt' => 'Mondeda',            "field" => "vent_moneda"),
+            array('db' => 'vent_total',                         'dt' => 'Total',            "field" => "vent_total"),
+            array('db' => 'usua_nombres',                  'dt' => 'Usuario',          "field" => "usua_nombres"),
+
+            array('db' => 'vent_id',                            'dt' => 'DT_RowId',         "field" => "vent_id"),
+        );
+
+        if ($json) {
+
+            $json = isset($_GET['json']) ? $_GET['json'] : false;
+
+            $table = 'venta';
+            $primaryKey = 'vent_id';
+
+            $sql_details = array(
+                'user' => $this->db->username,
+                'pass' => $this->db->password,
+                'db' => $this->db->database,
+                'host' => $this->db->hostname
+            );
+
+            $condiciones = array();
+
+            $joinQuery = "FROM venta JOIN maestra_comprobantes ON comp_id=vent_comp_id LEFT JOIN usuario ON vent_usu_id = usua_id";
+            $where = "";
+            if (!empty($_POST['desde'])&&!empty($_POST['hasta'])){
+                $condiciones[] = "vent_fecha >='".$_POST['desde']."' AND vent_fecha <='".$_POST['hasta']."'";
+            }
+            if (!empty($_POST['comprobantes']))
+                $condiciones[] = "vent_comp_id='".$_POST['comprobantes']."'";
+            if (!empty($_POST['usuario']))
+                $condiciones[] = "vent_usu_id='".$_POST['usuario']."'";
+            //$condiciones[] = "vent_comp_id='".$idcomp."'";
+
+           if (!empty($_POST['moneda']))
+                $condiciones[] = "vent_moneda='".$_POST['moneda']."'";
+            /*
+            if (!empty($_POST['archivo']))
+                $condiciones[] = "vent_genera_archivo='".$_POST['archivo']."'";*/
+
+            
+            $where = count($condiciones) > 0 ? implode(' AND ', $condiciones) : "";
+            echo json_encode(
+                    $this->ssp->simple($_POST, $sql_details, $table, $primaryKey, $columns, $joinQuery, $where)
+            );
+            exit(0);
+        }
+        $datos["comprobantes"] = $this->Model_general->getOptions('maestra_comprobantes', array("comp_id", "comp_nombre"),'* Comprobantes');
+        $datos["moneda"] = array_merge(array('* Monedas'),$this->Model_general->enum_valores('venta','vent_moneda'));
+        $datos["archivo"] = array_merge(array('* Envios'),$this->Model_general->enum_valores('venta','vent_genera_archivo'));
+        $datos["usuarios"] = $this->Model_general->getOptions('usuario', array("usua_id", "usua_nombres"),'* Usuarios');
+        $datos["cmps"] = $this->Model_general->getData('maestra_comprobantes', array('comp_id', 'comp_abrev'));
+        $datos['columns'] = $columns;
+
+        $datos['titulo'] = "Ventas por Cliente";
+        //$datos['idcomp'] = $idcomp;
+
+        $this->cssjs->set_path_js(base_url() . "assets/js/Reporte/");
+        $this->cssjs->add_js('list_vUsuario');
+        $script['js'] = $this->cssjs->generate_js();
+        $this->load->view('header', $script);
+        $this->load->view('menu');
+        $this->load->view('reporte/list_vUsuario', $datos);
+        $this->load->view('footer');
+    }
+    
+
+    public function buscar() {
+        $responese = new StdClass;
+        $search = isset($_GET['q']) ? $_GET["q"] : '';
+        $datos = array();
+        if($search == 'num'){
+            $doc_num = $_GET['num'];
+            $producto = $this->Model_general->select2("cliente", array("clie_docnum" => $doc_num));
+        }else{
+            $producto = $this->Model_general->select2("cliente", array("clie_rsocial" => $search));    
+        }
+        foreach ($producto["items"] as $value) {
+            $datos[] = array("id" => $value->clie_id, "text" => $value->clie_rsocial, "direccion" => $value->clie_direccion, "docnum" => $value->clie_docnum, "docu" => $value->clie_docu_id, "email" => $value->clie_email);
+        }
+        $responese->total_count = $producto["total_count"];
+        $responese->incomplete_results = false;
+        $responese->items = $datos;
+        echo json_encode($responese);
+        
+    }
+
+    public function crear($clie_id=0) {
+        $this->load->helper('Funciones');
+        $cliente = new stdClass();
+        if ($clie_id == 0) {
+            $cliente->clie_id = 0;
+            $cliente->clie_rsocial = "";
+            $cliente->clie_docnum = "";
+            $cliente->clie_direccion = "";
+            $cliente->clie_docu_id = "";
+            $cliente->clie_email = "";
+        }else{
+            $this->db->select('clie_id, clie_rsocial, clie_docnum, clie_docu_id, clie_direccion, clie_email');
+            $this->db->where('clie_id',$clie_id);
+            $this->db->from('cliente');
+            $cliente = $this->db->get()->row();
+            $cliente->clie_id = $cliente->clie_id;
+            $cliente->clie_rsocial = $cliente->clie_rsocial;
+            $cliente->clie_docnum = $cliente->clie_docnum;
+            $cliente->clie_direccion = $cliente->clie_direccion;
+            $cliente->clie_docu_id = $cliente->clie_docu_id;
+            $cliente->clie_email = $cliente->clie_email;
+        }
+        $datos["docu_options"] = $this->Model_general->getOptions('maestra_documentos',array('docu_id','docu_nombre'));
+        $datos['cliente'] = $cliente;
+        $this->load->view('cliente/form_crear', $datos);
+    }
+    public function buscar_v() {
+        $this->load->helper('Funciones');
+        $cliente = new stdClass();
+        $cliente->clie_rsocial = "";
+        $cliente->clie_docnum = "";
+        $cliente->clie_id = "";
+        $cliente->clie_direccion = "";
+        $cliente->clie_docu_id = "";
+        $datos["docu_options"] = $this->Model_general->getOptions('maestra_documentos',array('docu_id','docu_nombre'));
+        $datos['cliente'] = $cliente;
+        $this->load->view('cliente/form_buscar', $datos);
+    }
+
+    function guardar($clie_id=0) {
+        $rsocial = $this->input->post('rsocial');
+        $direccion = $this->input->post('direccion');
+        $docnum = $this->input->post('docnum');
+        $documento = $this->input->post('documento');
+        $email= $this->input->post('email');
+
+        $datos = array("clie_docu_id" => $documento,
+            "clie_rsocial" => $rsocial,
+            "clie_docnum" => $docnum,
+            "clie_email" => $email,
+            "clie_direccion" => $direccion);
+        if ($clie_id!='0') {
+            $this->load->database();
+            if ($this->Model_general->guardar_edit_registro("cliente", $datos, array("clie_id" => $clie_id)) == TRUE):
+                $json['exito'] = true;
+            else:
+                $json['exito'] = false;
+                $json['mensaje'] = "Error al actualizar los datos";
+            endif;
+        }
+        else {
+            if (($meta = $this->Model_general->guardar_registro("cliente", $datos)) == TRUE):
+                $json['exito'] = true;
+                $json['datos'] = array_merge(array('clie_id'=>$meta['id']),$datos);
+            else:
+                $json['exito'] = false;
+                $json['mensaje'] = "Error al guardar los datos";
+            endif;
+        }
+        echo json_encode($json);
+    }
+    function mostrar() {
+        $rsocial = $this->input->post('srsocial');
+        $direccion = $this->input->post('sdireccion');
+        $docnum = $this->input->post('sdocnum');
+        $documento = $this->input->post('sdocumento');
+        $email = $this->input->post('semail');
+        $clie_id = $this->input->post('clie_id');
+
+        $datos = array("clie_docu_id" => $documento,
+            "clie_rsocial" => $rsocial,
+            "clie_docnum" => $docnum,
+            "clie_email" => $email,
+            "clie_direccion" => $direccion);
+        
+        $json['exito'] = true;
+        $json['datos'] = array_merge(array('clie_id'=>$clie_id),$datos);
+        echo json_encode($json);
+    }
+    function eliminar($id){
+        $this->db->query("DELETE FROM cliente WHERE clie_id={$id}");
+        die(json_encode(array('exito'=>true,'mensaje'=>'')));
+    }
+    function getResumenCliente(){
+        $this->db->select("vent_clie_id, clie_rsocial, clie_id, SUM(vent_total) AS total_importe");
+        $this->db->from('venta');
+        $this->db->join('cliente', 'vent_clie_id = clie_id', 'left');
+        if($this->input->post('desde') != '' && $this->input->post('hasta') != ''){
+        	$this->db->where('vent_fecha >=', $this->input->post('desde'));
+		$this->db->where('vent_fecha <=', $this->input->post('hasta'));
+        }
+        if($this->input->post('comprobantes') != '')
+        	$this->db->where('vent_comp_id', $this->input->post('comprobantes'));
+        if($this->input->post('cliente') != '')
+        	$this->db->where('vent_clie_id', $this->input->post('cliente'));
+        if($this->input->post('search')['value'] != '')
+        	$this->db->like('vent_clie_rsocial', $this->input->post('search')['value']);
+        $this->db->group_by('vent_clie_id');
+        $this->db->order_by('total_importe', 'DESC');
+        $consulta = $this->db->get()->result();
+        $comprobantes = $this->Model_general->getData('maestra_comprobantes', array('*'));
+        $html = '';
+        foreach ($consulta as $i => $val) {
+            $resumen_comp = '';
+            $r_comp = '';
+            foreach ($comprobantes as $k => $comp) {
+                $this->db->select("COUNT(*) AS cantidad");
+                $this->db->from('venta');
+                if($this->input->post('desde') != '' && $this->input->post('hasta') != ''){
+	        	$this->db->where('vent_fecha >=', $this->input->post('desde'));
+			$this->db->where('vent_fecha <=', $this->input->post('hasta'));
+	        }
+                $this->db->where(array("vent_clie_id" => $val->vent_clie_id, "vent_comp_id" => $comp->comp_id));
+                $cnt_comp = $this->db->get()->row();
+                if($this->input->post('comprobantes') != ''){
+                	if($comp->comp_id == $this->input->post('comprobantes'))
+                		$r_comp .= '<td>'.$cnt_comp->cantidad.'</td>';
+                	else
+                		$r_comp .= '<td>0</td>';
+                }else
+	                $r_comp .= '<td>'.$cnt_comp->cantidad.'</td>';
+            }
+            $res_comp = $resumen_comp;
+            $ult_fecha = $this->db->select('DATE_FORMAT(vent_fecha, "%d/%m/%Y") AS ultima')->from('venta')->where('vent_clie_id', $val->vent_clie_id)->limit(1)->order_by('vent_id', 'DESC')->get()->row();
+            $html .= '<tr><td>'.$val->vent_clie_id.'</td><td>'.$val->clie_rsocial.'</td><td>'.$val->total_importe.'</td><td>'.$ult_fecha->ultima.'</td>'.$r_comp.'</tr>';
+            
+        }
+        echo json_encode(array('data' => $html));
+    }
+    function getResumenEmpleado(){
+        
+        $html = '';
+        $desde = $this->input->post('desde');
+        $hasta = $this->input->post('hasta');
+        $usuario = $this->input->post('usuario');
+        
+        $comprobantes = $this->Model_general->getData('maestra_comprobantes', array('*'));
+        $usuarios = $this->Model_general->getData('usuario', array('usua_id, usua_nombres'));
+        $reso = array();
+        foreach ($usuarios as $i => $usu) {
+            if($usuario == $usu->usua_id || $usuario == ''){
+                $r_comp = '';
+                $r_total= 0;
+                foreach ($comprobantes as $k => $comp) {
+                    $this->db->select("COUNT(*) AS cantidad, SUM(vent_total) AS total");
+                    $this->db->from('venta');
+                    $this->db->where(array("vent_usu_id" => $usu->usua_id, "vent_comp_id" => $comp->comp_id));
+                    if($this->input->post('moneda') != '0')
+                    	$this->db->where("vent_moneda", $this->input->post('moneda'));	
+                    if($this->input->post('desde') != '' && $this->input->post('hasta') != ''){
+		        	$this->db->where('vent_fecha >=', $this->input->post('desde'));
+				$this->db->where('vent_fecha <=', $this->input->post('hasta'));
+		        }
+                    $cnt_comp = $this->db->get()->row();
+                    if($this->input->post('comprobantes') != ''){
+			if($this->input->post('comprobantes') == $comp->comp_id){
+				$r_comp .= '<td>'.$cnt_comp->cantidad.'</td>';
+	                    	$r_total += $cnt_comp->total;                    
+			}else{
+				$r_comp .= '<td>0</td>';
+	                    	$r_total += 0;
+			}
+                    }else{
+	                $r_comp .= '<td>'.$cnt_comp->cantidad.'</td>';
+                    	$r_total += $cnt_comp->total;                    
+                    }
+                    
+
+                }
+                $ult_fecha = $this->db->select('DATE_FORMAT(vent_fecha, "%d/%m/%Y") AS ultima')->from('venta')->where('vent_usu_id', $usu->usua_id)->limit(1)->order_by('vent_id', 'DESC')->get()->row();
+                
+                $html .= '<tr><td>'.$usu->usua_id.'</td><td>'.$usu->usua_nombres.'</td><td>'.$r_total.'</td><td>'.(count($ult_fecha) > 0 ? $ult_fecha->ultima : '').'</td>'.$r_comp.'</tr>';
+            }
+        }
+        echo json_encode(array('data' => $html));
+    }
+    function reporte_ventas_empleados(){
+        $hasta = $this->input->get('hasta');
+        $desde = $this->input->get('desde');
+        $moneda = $this->input->get('moneda');
+        $tipo = $this->input->get('comprobantes');
+        $search = $this->input->get('search');
+        $usuario = $this->input->get('usuario');
+
+        
+        
+        $this->db->select("U.usua_nombres as usuario, DATE_FORMAT(V.vent_fecha,'%d/%m/%Y') AS fecha, COMP.comp_id AS ccod, COMP.comp_abrev AS ctipo, V.vent_serie AS serie, V.vent_descripcion as vdesc,V.vent_numero AS numero, V.vent_clie_rsocial AS rsocial, V.vent_clie_num_documento as docid_nro,V.vent_total AS ingreso, 0 AS egreso, IF(V.vent_moneda ='SOLES','S','D') as moneda, GROUP_CONCAT(DISTINCT VD.deta_descripcion ORDER BY VD.deta_id ASC) AS detalle");
+        $this->db->from("venta V");
+        $this->db->join("maestra_comprobantes COMP","COMP.comp_id = V.vent_comp_id");
+        $this->db->join("usuario U","U.usua_id = V.vent_usu_id");
+        $this->db->join("venta_detalle VD","VD.deta_vent_id = V.vent_id");
+        $this->db->where("V.vent_fecha BETWEEN '$desde' AND '$hasta'".($tipo != false?" AND V.vent_comp_id = '$tipo'":"")." ".($usuario != ''?" AND V.vent_usu_id = '$usuario'":"")." ".($moneda != '0'?"AND V.vent_moneda = '$moneda'":"")." ".($search != ""? " AND (V.vent_clie_rsocial LIKE '%$search%' OR V.vent_serie LIKE '%$search%' OR V.vent_numero LIKE '%$search%')":""));
+        $this->db->group_by('V.vent_id');
+        $this->db->order_by("V.vent_comp_id","ASC");
+        $this->db->order_by("V.vent_serie","ASC");
+        $this->db->order_by("V.vent_numero","ASC");
+        $pago = $this->db->get()->result();
+
+        $this->load->library("Excel");
+        $excel = new Excel();
+        $objPHPExcel = $excel->excel_init();
+        //--------------------  Estilos  ----------------------------
+        $bordeb = array(
+            'borders' => array(
+                'bottom' => array(
+                    'style' => PHPExcel_Style_Border::BORDER_THIN
+                )
+            )
+        );
+        $bordes = array(
+            'borders' => array(
+                'allborders' => array(
+                    'style' => PHPExcel_Style_Border::BORDER_THIN,
+                )
+            ));
+
+        $fillgray = array(
+            'fill' => array(
+                'type' => PHPExcel_Style_Fill::FILL_SOLID,
+                'color' => array('rgb' => 'E4E7E9')
+            )
+        );
+        
+
+        $objPHPExcel->getActiveSheet()->getStyle('D')->applyFromArray($fillgray);
+        $objPHPExcel->getActiveSheet()->getStyle('H')->applyFromArray($fillgray);
+
+        $objPHPExcel->getActiveSheet()->getStyle('J')->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('CEF1C9');
+        $objPHPExcel->getActiveSheet()->getStyle('R')->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('FFF9CE');
+
+        $objPHPExcel->getActiveSheet()
+                ->setCellValue('A1', 'FECDOC')
+                ->setCellValue('B1', 'DOC')
+                ->setCellValue('C1', 'SERIE')
+                ->setCellValue('D1', 'NUMERO')
+                ->setCellValue('E1', 'RUC')
+                ->setCellValue('F1', 'RAZON SOCIAL')
+                ->setCellValue('G1', 'INGRESO')
+                ->setCellValue('H1', 'MON')
+                ->setCellValue('I1', 'USUARIO');
+
+
+        $objPHPExcel->getActiveSheet()->getStyle('E')->getNumberFormat()->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_TEXT);
+        $objPHPExcel->getActiveSheet()->freezePane('A2');
+        
+        $ini = 3;
+        $index = 0;
+        
+        foreach($pago as $fila){
+            $nro = $index+$ini;
+            $index++;
+            $objPHPExcel->getActiveSheet()
+                ->setCellValue("A$nro", $fila->fecha)
+                ->setCellValue("B$nro", $fila->ctipo)
+                ->setCellValue("C$nro", $fila->serie)
+                ->setCellValue("D$nro", $fila->numero)
+                ->setCellValue("E$nro", $fila->docid_nro)
+                ->setCellValue("F$nro", $fila->rsocial)
+                ->setCellValue("G$nro", $fila->ingreso)
+                ->setCellValue("H$nro", $fila->moneda)
+                ->setCellValue("I$nro", $fila->usuario);
+                
+        }
+        foreach(range('A','S') as $nro){
+	        $objPHPExcel->getActiveSheet()->getColumnDimension($nro)->setAutoSize(true);
+	    }
+        
+        $fin = $index+$ini-1;
+        $objPHPExcel->getActiveSheet()->getStyle("G$ini:G$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        /*
+        $objPHPExcel->getActiveSheet()->getStyle("L$ini:O$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        $objPHPExcel->getActiveSheet()->getStyle("R$ini:R$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        */
+        $objPHPExcel->getActiveSheet()->getStyle("A$ini:A$fin")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+        $objPHPExcel->getActiveSheet()
+                ->setCellValue('M1', 'USUARIO')
+                ->setCellValue('N1', 'TOTAL VENTAS')
+                ->setCellValue('O1', 'ULT VENTA')
+                ->setCellValue('P1', 'FAC')
+                ->setCellValue('Q1', 'BOL')
+                ->setCellValue('R1', 'NCR')
+                ->setCellValue('S1', 'NDE');
+        $cmp_list = array("P", 'Q', 'R', 'S');
+        $ini = 3;
+        $index = 0;
+        $comprobantes = $this->Model_general->getData('maestra_comprobantes', array('*'));
+        $usuarios = $this->Model_general->getData('usuario', array('usua_id, usua_nombres'));
+        $reso = array();
+        foreach ($usuarios as $i => $usu) {
+            if($usuario == $usu->usua_id || $usuario == ''){
+                $r_comp = '';
+                $r_total= 0;
+                $ind = 0;
+                $nro = $index+$ini;
+                $index++;
+                foreach ($comprobantes as $k => $comp) {
+                    $this->db->select("COUNT(*) AS cantidad, SUM(vent_total) AS total");
+                    $this->db->from('venta');
+                    $this->db->where(array("vent_usu_id" => $usu->usua_id, "vent_comp_id" => $comp->comp_id));
+                    if($moneda != '0')
+                        $this->db->where("vent_moneda", $this->input->post('moneda'));  
+
+                    $this->db->where('vent_fecha >=', $desde);
+                    $this->db->where('vent_fecha <=', $hasta);
+                    $cnt_comp = $this->db->get()->row();
+                    if($tipo != ''){
+                        if($tipo == $comp->comp_id){
+                            $r_comp = $cnt_comp->cantidad;
+                            $r_total += $cnt_comp->total;                    
+                        }else{
+                            $r_comp = '0';
+                            $r_total += 0;
+                        }
+                    }else{
+                        $r_comp = $cnt_comp->cantidad;
+                        $r_total += $cnt_comp->total;                    
+                    }
+                    $ltr = $cmp_list[$ind].$nro;
+            	    $objPHPExcel->getActiveSheet()->setCellValue($ltr, $r_comp);
+                    $ind++;
+                }
+                $ult_fecha = $this->db->select('DATE_FORMAT(vent_fecha, "%d/%m/%Y") AS ultima')->from('venta')->where('vent_usu_id', $usu->usua_id)->limit(1)->order_by('vent_id', 'DESC')->get()->row();
+
+                $objPHPExcel->getActiveSheet()
+                ->setCellValue("M$nro", $usu->usua_nombres)
+                ->setCellValue("N$nro", $r_total)
+                ->setCellValue("O$nro", (count($ult_fecha) > 0 ? $ult_fecha->ultima : ''));
+            }
+        }
+        $fin = $index+$ini-1;
+        $objPHPExcel->getActiveSheet()->getStyle("N$ini:N$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        $objPHPExcel->getActiveSheet()->getStyle("O$ini:O$fin")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+        
+        $excel->excel_output($objPHPExcel, 'Ventas por empleado');
+    }
+    function reporte_ventas_general(){
+        $hasta = $this->input->get('hasta');
+        $desde = $this->input->get('desde');
+        $pagado = $this->input->get('estado');
+        $moneda = $this->input->get('moneda');
+        $tipo = $this->input->get('comprobantes');
+        $search = $this->input->get('search');
+
+        
+        $this->db->select("DATE_FORMAT(V.vent_fecha,'%d/%m/%Y') AS fecha, COMP.comp_abrev AS ctipo, V.vent_serie AS serie, V.vent_numero AS numero, V.vent_total AS total, V.vent_clie_rsocial AS rsocial, V.vent_pagado as estado, V.vent_pago_obs as pobs ,U.usua_nombres as usuario, IF(V.vent_moneda ='SOLES','S','D') as moneda");
+        $this->db->from("venta V");
+        $this->db->join("maestra_comprobantes COMP","COMP.comp_id = V.vent_comp_id");
+        $this->db->join("usuario U","U.usua_id = V.vent_usu_id");
+        $this->db->where("V.vent_fecha BETWEEN '$desde' AND '$hasta'".($tipo != false?" AND V.vent_comp_id = '$tipo'":"")." ".($moneda != '0'?"AND V.vent_moneda = '$moneda'":"")." ".($search != ""? " AND (V.vent_clie_rsocial LIKE '%$search%' OR V.vent_serie LIKE '%$search%' OR V.vent_numero LIKE '%$search%')":""));
+        $this->db->group_by('V.vent_id');
+        $this->db->order_by("V.vent_comp_id","ASC");
+        $this->db->order_by("V.vent_serie","ASC");
+        $this->db->order_by("V.vent_numero","ASC");
+        $ventas = $this->db->get()->result();
+        
+        $this->load->library("Excel");
+        $excel = new Excel();
+        $objPHPExcel = $excel->excel_init();
+        //--------------------  Estilos  ----------------------------
+        $bordeb = array(
+            'borders' => array(
+                'bottom' => array(
+                    'style' => PHPExcel_Style_Border::BORDER_THIN
+                )
+            )
+        );
+        $bordes = array(
+            'borders' => array(
+                'allborders' => array(
+                    'style' => PHPExcel_Style_Border::BORDER_THIN,
+                )
+            ));
+
+        $fillgray = array(
+            'fill' => array(
+                'type' => PHPExcel_Style_Fill::FILL_SOLID,
+                'color' => array('rgb' => 'E4E7E9')
+            )
+        );
+        
+
+        $objPHPExcel->getActiveSheet()->getStyle('D')->applyFromArray($fillgray);
+        $objPHPExcel->getActiveSheet()->getStyle('H')->applyFromArray($fillgray);
+
+        $objPHPExcel->getActiveSheet()->getStyle('J')->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('CEF1C9');
+
+
+        $objPHPExcel->getActiveSheet()
+                ->setCellValue('A1', 'FECHA')
+                ->setCellValue('B1', 'DOC')
+                ->setCellValue('C1', 'SERIE')
+                ->setCellValue('D1', 'NUMERO')
+                ->setCellValue('E1', 'MONEDA')
+                ->setCellValue('F1', 'TOTAL')
+                ->setCellValue('G1', 'RAZON SOCIAL')
+                ->setCellValue('H1', 'PAGADO')
+                ->setCellValue('I1', 'PAGO OBS')
+                ->setCellValue('J1', 'USUARIO');
+
+        $objPHPExcel->getActiveSheet()->getStyle('D')->getNumberFormat()->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_TEXT);
+        $objPHPExcel->getActiveSheet()->freezePane('A2');
+        
+        $ini = 3;
+        $index = 0;
+        
+        foreach($ventas as $fila){
+            $nro = $index+$ini;
+            $index++;
+            $objPHPExcel->getActiveSheet()
+                ->setCellValue("A$nro", $fila->fecha)
+                ->setCellValue("B$nro", $fila->ctipo)
+                ->setCellValue("C$nro", $fila->serie)
+                ->setCellValue("D$nro", $fila->numero)
+                ->setCellValue("E$nro", $fila->moneda)
+                ->setCellValue("F$nro", $fila->total)
+                ->setCellValue("G$nro", $fila->rsocial)
+                ->setCellValue("H$nro", $fila->estado)
+                ->setCellValue("I$nro", $fila->pobs)
+                ->setCellValue("J$nro", $fila->usuario);
+        }
+        foreach(range('A','J') as $nro){
+	    $objPHPExcel->getActiveSheet()->getColumnDimension($nro)->setAutoSize(true);
+	}
+        
+        $fin = $index+$ini-1;
+        $objPHPExcel->getActiveSheet()->getStyle("F$ini:F$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        $objPHPExcel->getActiveSheet()->getStyle("N4:P6")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        /*
+        $objPHPExcel->getActiveSheet()->getStyle("L$ini:O$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        $objPHPExcel->getActiveSheet()->getStyle("R$ini:R$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        */
+        $objPHPExcel->getActiveSheet()->getStyle("A$ini:A$fin")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+        
+        $monedas_l = $this->Model_general->enum_valores('venta','vent_moneda');
+        $pagado_l = $this->Model_general->enum_valores('venta','vent_pagado');    
+        
+        $total = array();
+        foreach($monedas_l as $m){
+            $tmp = array();
+            foreach($pagado_l as $p){
+                $this->db->select('SUM(vent_total) AS total');
+                $this->db->from('venta');
+                if($search != '')
+                    $this->db->like('vent_clie_rsocial', $this->input->post('search')['value']);
+                if($tipo != '')                    
+                    $this->db->where('vent_comp_id', $this->input->post('comprobantes'));
+                $this->db->where('vent_fecha >=', $desde);
+                $this->db->where('vent_fecha <=', $hasta);
+                if($pagado != ''){
+                    $this->db->where('vent_pagado', $this->input->post('estado'));
+                }else{
+                    $this->db->where('vent_pagado', $p);
+                }
+                if($moneda != '0'){
+                    $this->db->where('vent_moneda', $this->input->post('moneda'));
+                }else{
+                    $this->db->where('vent_moneda', $m);
+                }
+                    
+                $this->db->where('vent_moneda', $m);                
+                $this->db->where('vent_pagado', $p);
+                $consulta = $this->db->get()->row();
+                
+                $tmp[$p] = $consulta->total == '' ? '0.00' : $consulta->total;   
+            }
+
+            $total[] = array_merge(array("MONEDA" => $m), $tmp);
+            
+        }
+        
+        $objPHPExcel->getActiveSheet()->getStyle('M4:M6')->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('CEF1C9');
+        $objPHPExcel->getActiveSheet()->getStyle('N3:P3')->getFill()->setFillType(PHPExcel_Style_Fill::FILL_SOLID)->getStartColor()->setRGB('FFF9CE');
+        
+        $si = 0;
+        $no = 0;
+        $sig = 3;
+        $objPHPExcel->getActiveSheet()
+	        ->setCellValue("M$sig", '')
+	        ->setCellValue("N$sig", 'PAGADO')
+	        ->setCellValue("O$sig", 'CREDITO')
+	        ->setCellValue("P$sig", 'SUMA');
+	    $sig++;
+        foreach($total as $t){
+            $si += $t['SI'];
+            $no += $t['NO'];
+            $sum = $t['SI']+$t['NO'];
+            $objPHPExcel->getActiveSheet()
+                ->setCellValue("M$sig", $t['MONEDA'])
+                ->setCellValue("N$sig", $t['SI'])
+                ->setCellValue("O$sig", $t['NO'])
+                ->setCellValue("P$sig", $sum);
+            $sig++;
+        }
+        $suma = $si + $no;
+        $objPHPExcel->getActiveSheet()
+                ->setCellValue("M$sig", 'TOTAL')
+                ->setCellValue("N$sig", $si)
+                ->setCellValue("O$sig", $no)
+                ->setCellValue("P$sig", $suma);
+        
+        $excel->excel_output($objPHPExcel, 'Ventas generales');
+    }
+    public function reporte_excel_clientes(){
+	$hasta = $this->input->get('hasta');
+        $desde = $this->input->get('desde');
+        $cliente = $this->input->get('clientes');
+        $tipo = $this->input->get('comprobantes');
+        $search = $this->input->get('search');
+        
+ 
+        $this->db->select("DATE_FORMAT(V.vent_fecha,'%d/%m/%Y') AS fecha, COMP.comp_abrev AS ctipo, V.vent_serie AS serie, V.vent_numero AS numero, V.vent_total AS total, V.vent_clie_rsocial AS rsocial, V.vent_pago_obs as pobs, IF(V.vent_moneda ='SOLES','S','D') as moneda");
+        $this->db->from("venta V");
+        $this->db->join("maestra_comprobantes COMP","COMP.comp_id = V.vent_comp_id");
+        $this->db->where("V.vent_fecha BETWEEN '$desde' AND '$hasta'".($tipo != false?" AND V.vent_comp_id = '$tipo'":"")." ".($cliente != ''?" AND V.vent_clie_id = '$cliente'":"")." ".($search != ""? " AND (V.vent_clie_rsocial LIKE '%$search%' OR V.vent_serie LIKE '%$search%' OR V.vent_numero LIKE '%$search%')":""));
+        $this->db->group_by('V.vent_id');
+        $this->db->order_by("V.vent_comp_id","ASC");
+        $this->db->order_by("V.vent_serie","ASC");
+        $this->db->order_by("V.vent_numero","ASC");
+        $ventas = $this->db->get()->result();
+        
+        $this->load->library("Excel");
+        $excel = new Excel();
+        $objPHPExcel = $excel->excel_init();
+        //--------------------  Estilos  ----------------------------
+        $bordeb = array(
+            'borders' => array(
+                'bottom' => array(
+                    'style' => PHPExcel_Style_Border::BORDER_THIN
+                )
+            )
+        );
+        $bordes = array(
+            'borders' => array(
+                'allborders' => array(
+                    'style' => PHPExcel_Style_Border::BORDER_THIN,
+                )
+            ));
+
+        $fillgray = array(
+            'fill' => array(
+                'type' => PHPExcel_Style_Fill::FILL_SOLID,
+                'color' => array('rgb' => 'E4E7E9')
+            )
+        );
+        
+
+        $objPHPExcel->getActiveSheet()
+                ->setCellValue('A1', 'FECHA')
+                ->setCellValue('B1', 'DOC')
+                ->setCellValue('C1', 'SERIE')
+                ->setCellValue('D1', 'NUMERO')
+                ->setCellValue('E1', 'MONEDA')
+                ->setCellValue('F1', 'TOTAL')
+                ->setCellValue('G1', 'RAZON SOCIAL');
+
+        $objPHPExcel->getActiveSheet()->getStyle('D')->getNumberFormat()->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_TEXT);
+        $objPHPExcel->getActiveSheet()->freezePane('A2');
+        
+        $ini = 3;
+        $index = 0;
+        
+        foreach($ventas as $fila){
+            $nro = $index+$ini;
+            $index++;
+            $objPHPExcel->getActiveSheet()
+                ->setCellValue("A$nro", $fila->fecha)
+                ->setCellValue("B$nro", $fila->ctipo)
+                ->setCellValue("C$nro", $fila->serie)
+                ->setCellValue("D$nro", $fila->numero)
+                ->setCellValue("E$nro", $fila->moneda)
+                ->setCellValue("F$nro", $fila->total)
+                ->setCellValue("G$nro", $fila->rsocial);
+        }
+        foreach(range('A','L') as $nro){
+	    $objPHPExcel->getActiveSheet()->getColumnDimension($nro)->setAutoSize(true);
+	}
+        
+        $fin = $index+$ini-1;
+        $objPHPExcel->getActiveSheet()->getStyle("F$ini:F$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        //$objPHPExcel->getActiveSheet()->getStyle("N4:P6")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        $objPHPExcel->getActiveSheet()->getStyle("A$ini:A$fin")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+        
+
+	
+	$this->db->select("vent_clie_id, clie_rsocial, clie_id, SUM(vent_total) AS total_importe");
+        $this->db->from('venta');
+        $this->db->join('cliente', 'vent_clie_id = clie_id', 'left');
+	$this->db->where('vent_fecha >=', $desde);
+	$this->db->where('vent_fecha <=', $hasta);
+
+        if($tipo != '')
+        	$this->db->where('vent_comp_id', $this->input->post('comprobantes'));
+        if($cliente != '')
+        	$this->db->where('vent_clie_id', $this->input->post('cliente'));
+        if($search != '')
+        	$this->db->like('vent_clie_rsocial', $this->input->post('search')['value']);
+        $this->db->group_by('vent_clie_id');
+        $this->db->order_by('total_importe', 'DESC');
+        $consulta = $this->db->get()->result();
+        $comprobantes = $this->Model_general->getData('maestra_comprobantes', array('*'));
+        $html = '';
+       
+
+        $objPHPExcel->getActiveSheet()
+                ->setCellValue('J1', 'CLIENTE')
+                ->setCellValue('K1', 'TOTAL IMPORTE')
+                ->setCellValue('L1', 'ULT IMPORTE')
+                ->setCellValue('M1', 'FAC')
+                ->setCellValue('N1', 'BOL')
+                ->setCellValue('O1', 'NCR')
+                ->setCellValue('P1', 'NDE');
+
+        $cmp_list = array("M", 'N', 'O', 'P');
+        $ini = 3;
+        $index = 0;
+         foreach ($consulta as $i => $val) {
+            $resumen_comp = '';
+            $r_comp = '';
+            $ind = 0;
+            $nro = $index+$ini;
+            $index++;
+            foreach ($comprobantes as $k => $comp) {
+                $this->db->select("COUNT(*) AS cantidad");
+                $this->db->from('venta');
+        	$this->db->where('vent_fecha >=', $desde);
+		$this->db->where('vent_fecha <=', $hasta);
+                $this->db->where(array("vent_clie_id" => $val->vent_clie_id, "vent_comp_id" => $comp->comp_id));
+                $cnt_comp = $this->db->get()->row();
+                if($tipo != ''){
+                	if($comp->comp_id == $tipo)
+                		$r_comp = $cnt_comp->cantidad;
+                	else
+                		$r_comp = '0';
+                }else
+	                $r_comp = $cnt_comp->cantidad;
+	        $ltr = $cmp_list[$ind].$nro;
+	        $objPHPExcel->getActiveSheet()->setCellValue($ltr, $r_comp);
+	        $ind++;
+            }
+            $res_comp = $resumen_comp;
+            $ult_fecha = $this->db->select('DATE_FORMAT(vent_fecha, "%d/%m/%Y") AS ultima')->from('venta')->where('vent_clie_id', $val->vent_clie_id)->limit(1)->order_by('vent_id', 'DESC')->get()->row();
+            //$html .= '<tr><td>'.$val->vent_clie_id.'</td><td>'.$val->clie_rsocial.'</td><td>'.$val->total_importe.'</td><td>'.$ult_fecha->ultima.'</td>'.$r_comp.'</tr>';
+            
+            $objPHPExcel->getActiveSheet()
+                ->setCellValue("J$nro", $val->clie_rsocial)
+                ->setCellValue("K$nro", $val->total_importe)
+                ->setCellValue("L$nro", $ult_fecha->ultima);
+            
+        }
+        
+        $fin = $index+$ini-1;
+        $objPHPExcel->getActiveSheet()->getStyle("F$ini:F$fin")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        //$objPHPExcel->getActiveSheet()->getStyle("N4:P6")->getNumberFormat()->setFormatCode('#,##0.00'); 
+        $objPHPExcel->getActiveSheet()->getStyle("A$ini:A$fin")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+        
+        
+        $excel->excel_output($objPHPExcel, 'Ventas por Cliente');    
+    }
+}
+

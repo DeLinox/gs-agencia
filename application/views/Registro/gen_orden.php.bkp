@@ -1,0 +1,166 @@
+<script>
+    adic = <?= $adic ?>;
+    detas = <?= $detas ?>;
+</script>
+
+<div id="page-wrapper">
+    <div class="page-header col-md-12">
+        <div class="row page-header-title">
+            <div class="col-sm-6">
+                <h3><?php echo $titulo; ?></h3>
+            </div>
+        </div>
+    </div>
+    <div class="page-content serv">
+        <div class="col-md-12">
+            <div class="alert alert-danger error hidden" role="alert">
+                <span class="text">Error:</span>
+            </div>
+            <form id="frm-gen-orden" class="form-horizontal" action="<?=base_url()?>Registro/guardar_orden/<?= $orden->orde_id ?>" method="post">
+                <div class="modal-body">
+                    <input type="hidden" name="paqu_id" value="<?= $orden->orde_paqu_id ?>">
+                    <div class="alert alert-danger errorOrd hidden" role="alert">
+                        <span class="text">Error:</span>
+                    </div>
+                    <div class="row">
+                        <div class="form-group">
+                            <div class="col-sm-9">
+                                <?= form_label('<strong>Servicio</strong>', 'servicio', array('class' => 'control-label')); ?>
+                                <select id="servicio" name="servicio" class="form-control input-sm" ></select>
+                            </div>
+                            <div class="col-sm-3">
+                                <?= form_label('<strong>Orden Numero</strong>', 'numero', array('class' => 'control-label')); ?>
+                                <?= form_input(array("name" => "numero", "value" => $orden->orde_nro, "class" => "form-control input-sm")); ?>
+                            </div>
+                            <div class="col-sm-3 hidden">
+                                <?= form_label('<strong>Fecha Emision</strong>', 'fecha_emi', array('class' => 'control-label')); ?>
+                                <div class="input-group">
+                                    <input id="fecha_emi" name="fecha_emi" type="text" class="form-control fecha" value="<?= $orden->orde_fecha ?>" placeholder="dd/mm/aaaa" />
+                                    <span class="input-group-addon"><span class="glyphicon glyphicon-calendar"></span></span>
+                                </div>
+                            </div>
+                            <div class="col-sm-4 hidden">
+                                <?= form_label('<strong>Moneda</strong>', 'moneda', array('class' => 'control-label')); ?>
+                                <?= form_dropdown('moneda', $monedas, $orden->orde_moneda, array('class' => 'form-control input-sm')); ?>
+                            </div>
+                            
+                        </div>
+                        <input type="hidden" id="serv_id" name="serv_id" value="<?= $orden->orde_serv_id ?>">
+                        <input type="hidden" id="serv_name" name="serv_name" value="<?= $orden->orde_servicio ?>">
+                        <div class="col-sm-7">
+                            <div class="form-group">
+                                <div class="col-sm-4">
+                                    <strong>Servicio</strong>
+                                </div>
+                                <div class="col-sm-4">
+                                    <strong>Proveedor</strong>
+                                </div>
+                                <div class="col-sm-2">
+                                    <strong>Cant</strong>
+                                </div>
+                                <div class="col-sm-2">
+                                    <strong>Costo</strong>
+                                </div>
+                            </div>
+                            <div class="serv_adicionales">
+                                
+                            </div>
+                            <div class="form-group">
+                                <div class="col-sm-12">
+                                    <button type="button" class="btn btn-warning btn-sm agregaradic pull-left"><span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span> Servicio adicional</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hhd">
+                        <div class="form-group">
+                            <div class="col-sm-12">
+                                <div class="fact-head ">
+                                    <div class="col-sm-1">
+                                        PAX
+                                    </div>
+                                    <div class="col-sm-3">
+                                        NOMBRES
+                                    </div>
+                                    <div class="col-sm-2">
+                                        HOTEL
+                                    </div>
+                                    <div class="col-sm-3">
+                                        CONTACTO
+                                    </div>
+                                    <div class="col-sm-3">
+                                        OBS.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>  
+                    </div>
+                    <div class="">
+                        <div class="sortable clearfix"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default btn-sm agregarfila pull-left">
+                        <span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span> Agregar producto
+                    </button>
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<div id="clonables" class="hide">
+    <div class="serv-item form-group">
+        <input type="hidden" name="deta_id[]" value="" />
+        <input type="hidden" name="deta_pdet_id[]" value="" />
+        <input type="hidden" name="deta_endose[]" value="" />
+        <input type="hidden" name="deta_file[]" value="" />
+        <input type="hidden" name="deta_hora[]" value="" />
+        <input type="hidden" name="deta_fecha[]" value="" />
+        <input type="hidden" name="deta_lunch[]" value="" />
+
+        <div class="col-sm-1">
+            <input id="deta_pax" name="deta_pax[]" type="text" class="form-control deta_pax input-sm"/>
+        </div>
+        <div class="col-sm-3">
+            <input id="deta_nombres" name="deta_nombres[]" type="text" class="form-control deta_nombres input-sm"/>
+        </div>
+        <div class="col-sm-2">
+            <input id="deta_hotel" name="deta_hotel[]" type="text" class="form-control deta_hotel input-sm"/>
+        </div>
+        <div class="col-sm-3">
+            <input id="deta_contacto" name="deta_contacto[]" type="text" class="form-control input-sm deta_contacto"/>
+        </div>
+        <div class="col-sm-3">
+            <input id="deta_obs" name="deta_obs[]" type="text" class="form-control deta_obs input-sm"/>
+        </div>
+        <!--
+        <div class="col-sm-1">
+            <button type="button" class="btn btn-danger btn-sm borrarItem"><span class="glyphicon glyphicon-trash" aria-hidden="true"></span></button>
+        </div>
+        -->
+    </div>
+    <div class="adic-item">
+        <input type="hidden" name="adic_id[]" value="" />
+        <div class="form-group">
+            <div class="col-sm-4">
+                <select name="tservicio[]" class="form-control adic_tservicio" id="tservicio"></select>
+            </div>
+            <div class="col-sm-4">
+                <select name="proveedor[]" class="form-control adic_proveedor" id="proveedor"></select>
+            </div>
+            <div class="col-sm-2">
+                <input class="form-control input-sm" value="0" type="text" name="adicional_cant[]" id="adicional_cant">
+            </div>
+            <div class="col-sm-2">
+                <input class="form-control input-sm" value="0.00" type="text" name="adicional_precio[]" id="adicional_precio">
+            </div>
+            <div class="col-sm-8">
+                <input style="margin-top: 10px" class="form-control input-sm" type="text" name="adicional_deta[]" id="adicional_deta" placeholder="descripcion del servicio">
+            </div>
+        </div>
+    </div>
+</div>

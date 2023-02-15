@@ -1,0 +1,186 @@
+<nav class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="<?=base_url()?>">
+				<img class="logo" alt="Logo" src="<?=base_url() ?>assets/img/logo.png">
+				<span>MCFact</span>
+			</a>
+            <div class="col-xs-4 hidden-xs">
+                <!--<form class="navbar-form pull-left" role="search" action="<?=base_url()?>expedientes/consultar">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Buscar" name="q">
+                        <div class="input-group-btn">
+                            <button class="btn btn-default" type="submit"><i class="glyphicon glyphicon-search"></i></button>
+                        </div>
+                    </div>
+                </form>-->
+                <h3 class="pull-left">
+					<?php if($this->configuracion->conf_sunat_tipo!='PRODUCCION'): ?>
+					<?php echo "SUNAT: ".$this->configuracion->conf_sunat_tipo; ?>
+					<?php endif; ?>
+                </h3>
+            </div>
+            <ul class="nav pull-right hidden-xs">
+                <li class="dropdown pull-right">
+                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+                        <i class="glyphicon glyphicon-user"></i> Usuario <i class="glyphicon glyphicon-menu-down"></i>
+                    </a>
+                    <ul class="dropdown-menu dropdown-user">
+                        <li><a href="<?=base_url() ?>usuario/perfil" title="Editar Perfil" class="perfil"><i class="fa fa-user fa-fw"></i> Perfil del usuario</a>
+                        </li>
+                        <!-- <li><a href="#"><i class="fa fa-gear fa-fw"></i> Configuraciones</a> -->
+                </li>
+                <li class="divider"></li>
+                <li><a href="<?php echo base_url() ?>login/salir"><i class="fa fa-sign-out fa-fw"></i> Salir del sistema</a>
+                </li>
+                </ul>
+                </li>
+                <?php /*if($this->pendientes > 0): ?>
+                <li class="dropdown pull-right">
+                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+                        <i class="glyphicon glyphicon-alert"></i> Alertas <i class="glyphicon glyphicon-menu-down"></i>
+                    </a>
+                    <ul class="dropdown-menu dropdown-alerts">
+                        <li>
+                            <a href="<?= base_url() ?>Venta/listado_pendientes/">
+                                <div>
+                                    <i class="glyphicon glyphicon-comment"></i>
+                                    <span class="text-muted small">
+                                    	 <?= $this->pendientes ?> comprobantes por cobrar.
+                                    </span>
+                                </div>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <?php endif;*/ ?>
+            </ul>
+        </div>
+    </div>
+</nav>
+<div class="sidebar">
+    <div class="sidebar-nav navbar-collapse collapse">
+        <ul class="menu" id="side-menu">
+            <?php
+				$menu1 = array(
+						array(
+								"name"=>"Ventas",
+								"class"=>"glyphicon glyphicon-shopping-cart",
+								"url"=>"",
+								"menu"=>array(
+									array("name"=>"Pedidos","module"=>"Cotizacion","method"=>"listado","url"=>"Cotizacion/listado/","url2"=>"Cotizacion/crear/","name2"=>"Crear pedido"),
+									array("name"=>"Comprobantes","module"=>"Venta","method"=>"listado","url"=>"Venta/listado/","url2"=>"Venta/crear/01","name2"=>"Crear Factura"),
+									array("name"=>"Guía de Remisión","module"=>"Remision","method"=>"listado","url"=>"Remision/listado/","url2"=>"Remision/crear/","name2"=>"Crear guia de remisión"),
+									//array("name"=>"Pendientes de cobro","module"=>"Venta","method"=>"listado_pendientes","url"=>"Venta/listado_pendientes/"),
+									//array("name"=>"Pagos","module"=>"Venta","method"=>"pagos","url"=>"Venta/pagos"),
+									array("name"=>"Clientes","module"=>"cliente","method"=>"listado","url"=>"cliente/listado")
+								)
+							)
+					);
+				$menu2 = array(
+						
+						array(
+								"name"=>"Resumenes y bajas",
+								"class"=>"glyphicon glyphicon-folder-open",
+								"url"=>"",
+								"menu"=>array(
+									array("name"=>"Resumen de boletas","module"=>"Resumen","method"=>"listado","url"=>"Resumen/listado"),
+									array("name"=>"Comunicación de bajas","module"=>"Baja","method"=>"listado","url"=>"Baja/listado"),
+								)
+							),
+						array(
+								"name"=>"Almacen",
+								"class"=>"glyphicon glyphicon-modal-window",
+								"url"=>"",
+								"menu"=>array(
+									array("name"=>"Ingresos","module"=>"almacen","method"=>"ingresos","url"=>"Almacen/listado/1")
+									,array("name"=>"Salidas","module"=>"almacen","method"=>"salidas","url"=>"Almacen/listado/2")
+									//,array("name"=>"Traslados","module"=>"almacen","method"=>"traslados","url"=>"Almacen/listado/3")
+									,array("name"=>"Inventario por Producto","module"=>"almacen","method"=>"inventario","url"=>"Almacen/Inventario")
+									
+									,array("name"=>"Productos", "module"=>"Producto","method"=>"listado", "url"=>"Producto/listado")
+									,array("name"=>"Categorias de productos", "module"=>"Producto","method"=>"categorias", "url"=>"Producto/categorias")
+								)
+							),
+						array(
+								"name"=>"Cuentas",
+								"class"=>"glyphicon glyphicon-inbox",
+								"url"=>"",
+								"menu"=>array(
+									array("name"=>"Cuentas","module"=>"cuenta","method"=>"listado","url"=>"Cuenta/listado"),
+									array("name"=>"Kardex","module"=>"cuenta","method"=>"movimientos","url"=>"Cuenta/movimientos"),
+								)
+							),
+						array(
+								"name"=>"Reportes",
+								"class"=>"glyphicon glyphicon-tasks",
+								"url"=>"",
+								"menu"=>array(
+									array("name"=>"Todas las Ventas","module"=>"Reporte","method"=>"ventas","url"=>"Reporte/ventas"),
+									array("name"=>"Ventas por cliente","module"=>"Reporte","method"=>"ventas_cliente","url"=>"Reporte/ventas_cliente"),
+									array("name"=>"Emision por empleado","module"=>"Reporte","method"=>"ventas_empleado","url"=>"Reporte/ventas_empleado"),
+									array("name"=>"Ingresos por proveedor","module"=>"reporte","method"=>"ingresos_proveedor","url"=>"Reporte/ingresos_proveedor"),
+									array("name"=>"Stocks","module"=>"reporte","method"=>"productos_stock","url"=>"Reporte/productos_stock"),
+									
+								)
+							),
+						array(
+								"name"=>"Configuracion",
+								"class"=>"glyphicon glyphicon-wrench",
+								"url"=>"",
+								"menu"=>array(
+									//array("url"=>"Configuracion/empresa", "module"=>"Configuracion","method"=>"empresa","name"=>"Empresa")
+									array("url"=>"Configuracion/sucursales", "module"=>"plantillas","method"=>"init", "name"=>"Sucursales")
+									//,array("url"=>"Configuracion/series", "module"=>"configuracion","method"=>"series", "name"=>"Sucursales y series")
+									,array("url"=>"Usuario/inicio", "module"=>"plantillas","method"=>"init", "name"=>"Usuarios")
+									//,array("url"=>"Cuenta/listado", "module"=>"plantillas","method"=>"init", "name"=>"Cuentas")
+								)
+							),
+						
+					);
+				if($this->session->userdata('authorizedadmin') == 2){
+					$menu = array_merge($menu1, $menu2);
+				}else{
+					$menu = $menu1;
+				}
+				
+				foreach($menu as $mid=>$m):
+				
+				?>
+                <li>
+                    <a href="<?php echo base_url().$m['url']; ?>#<?php echo $mid; ?>">
+							<i class="<?php echo $m['class']; ?>"></i>
+							<?php echo $m['name']; ?>
+							<?php echo count($m['menu'])>0?'<span class="glyphicon glyphicon-chevron-left pull-right arrow"></span>':''; ?>
+						</a>
+                    <?php 
+							if(count($m['menu'])>0): 
+								echo '<ul class="nav nav-second-level collapse out">';
+								foreach($m['menu'] as $op):
+
+						?>
+                    <li>
+                        <a href="<?php echo base_url().$op['url'] ?>#<?php echo $mid; ?>" class="<?php echo ($this->router->class==$op['module']&&$this->router->method==$op['method']?" active ":" "); ?>">
+                            <?php echo $op['name']; ?>
+                            <?php if(isset($op['url2'])): ?>
+                            <span class="more glyphicon glyphicon-plus" href="<?php echo base_url().$op['url2'] ?>#<?php echo $mid; ?>" title="<?php echo $op['name2'] ?>"></span>
+                            <?php endif; ?>
+                            <?php if(isset($op['url3'])): ?>
+                            <span class="more2 glyphicon glyphicon-plus" href="<?php echo base_url().$op['url3'] ?>#<?php echo $mid; ?>" title="<?php echo $op['name3'] ?>"></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                    <?php endforeach; echo "</ul>"; endif; ?>
+                </li>
+                <?php 
+				endforeach;
+			?>
+        </ul>
+    </div>
+</div>

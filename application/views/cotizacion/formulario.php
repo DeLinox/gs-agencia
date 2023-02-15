@@ -1,0 +1,349 @@
+<script>
+	productos = <?= $productos ?>
+</script>
+<div id="page-wrapper">
+    <div class="page-header col-md-12">
+        <div class="row page-header-title">
+            <div class="col-sm-12">
+                <h3><?php echo $titulo; ?></h3>
+            </div>
+        </div>
+    </div>
+    <div class="page-content fact">
+        <div class="col-md-12">
+
+            <input type="hidden" id="id_cotizacion" value="<?= $id_cotizacion ?>">
+
+            <div class="alert alert-danger error hidden" role="alert">
+                <span class="text">Error:</span>
+            </div>
+            <form action="<?= base_url() ?>Cotizacion/guardar/<?= $id_cotizacion ?>" method="post" id="cotizar">
+                <br>
+                <div class="row">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="serie">Número</label>
+                            <div class="input-group">
+                                <input id="serie" name="serie" type="text" value="<?= $cotizacion->coti_serie ?>" class="form-control input-sm text-right"  />
+                                <span class="input-group-btn" style="width:5px;"></span>
+                                <input id="numero" name="numero" type="text" value="<?= $cotizacion->coti_numero ?>" class="form-control input-sm text-right"  />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="sucursal">Almacen</label>
+                            <?= form_dropdown('sucursal', $sucursales, $cotizacion->coti_sucu_id, array('class' => 'form-control input-sm', "id" => "sucursal")); ?>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="comprobante">Moneda</label>
+							<?= form_dropdown('coti_moneda', $moneda, $cotizacion->coti_moneda, array('class' => 'form-control input-sm', "id" => "moneda")); ?>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="fecha">Fecha de emision</label>
+                            <div class='input-group'>
+                                <input id="fecha" name="fecha" type="text" value="<?= $cotizacion->coti_fecha ?>" class="form-control fecha input-sm"  />
+                                <span class="input-group-addon">
+                                <span class="glyphicon glyphicon-calendar"></span>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="form-group">
+                    <label for="serie">Razón social</label>
+                    <div class="input-group">
+                        <input id="rsocial" name="rsocial" type="text" value="<?= $cotizacion->coti_clie_rsocial ?>" class="form-control input-sm" placeholder="Razón Social" />
+                        <input id="clie_id" name="clie_id" type="hidden" value="<?= $cotizacion->coti_clie_id ?>"/>
+                        <span class="input-group-btn">
+                            <a class="btn btn-default searchclient btn-sm" href="<?php echo base_url() ?>cliente/buscar_v">
+                                <span class="glyphicon glyphicon-search"></span>
+                            </a>
+                            <a class="btn btn-default newclient btn-sm" href="<?php echo base_url() ?>cliente/crear">
+                                <span class="glyphicon glyphicon-plus-sign"></span>
+                            </a>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+
+                            <div class="row">
+                                <div class="col-xs-6">
+                                    <label for="documento">Documento</label>
+									<?= form_dropdown('documento', $documentos, $cotizacion->coti_clie_docu_id, array('class' => 'form-control input-sm', "id" => "documento")); ?>
+                                </div>
+                                <div class="col-xs-6">
+                                    <label for="documento">.</label>
+                                    <div class="input-group">
+                                        <input id="docnum" name="docnum" value="<?php echo $cotizacion->coti_clie_num_documento; ?>" type="text" class="form-control input-sm" placeholder="00000000000">
+                                        <div class="input-group-btn">
+                                            <a href="#" id="completar" class="btn btn-default btn-sm"><span class="glyphicon glyphicon-eye-open"></span></a>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="direccion">Dirección</label>
+                            <input id="direccion" name="direccion" type="text" value="<?= $cotizacion->coti_clie_direccion ?>" class="form-control input-sm" placeholder="Dirección" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="correo1">E-Mail</label>
+                            <input id="email" name="email" type="text" value="<?= $cotizacion->coti_clie_email ?>" class="form-control input-sm" placeholder="usuario@dominio.com" />
+                        </div>  
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="correo1">.</label>
+                            <div class="formdrown">
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                        <span class="glyphicon glyphicon-cog" aria-hidden="true"></span> Opciones Adicionales
+                                        <span class="caret"></span>
+                                        <span class="sr-only">Toggle Dropdown</span>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li class="hidden"><label><input name="enviar_email" id="enviar_email" type="checkbox" value=""> Enviar a email</label></li>
+                                        <li><label for="direccion">Descripción</label><br><textarea id="descripcion" name="descripcion" class="form-control"><?= $cotizacion->coti_descripcion ?></textarea></li>
+                                        <li><label for="desc_global">Descuento Global</label><br>
+                                            <div class="input-group">
+                                                <span class="input-group-addon">%</span>
+                                                <input id="desc_global" name="desc_global" type="text" value="<?= $cotizacion->coti_desc_global ?>" class="form-control input-sm"  />
+                                            </div></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fact-wrap">
+                    <div class="fact-head row">
+                        <div class="col-sm-1">
+                            OPCIONES
+                        </div>
+                        <div class="col-sm-6">
+                            PRODUCTO / SERVICIO
+                        </div>
+                        <div class="col-sm-5">
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    UNID.
+                                </div>
+                                <div class="col-sm-3">
+                                    CANT
+                                </div>
+                                <div class="col-sm-3">
+                                    PRECIO.
+                                </div>
+                                <div class="col-sm-3">
+                                    IMPORTE
+                                </div> 
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="sortable clearfix">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-8">
+
+                        <a class="btn btn-default btn-sm agregarfila" href="#">
+                            <span class="glyphicon glyphicon-plus-sign" aria-hidden="true"></span> Agregar producto
+                        </a>
+                        <button type="submit" value="Guardar" class="btn btn-success btn-sm" >
+                            <span class="glyphicon glyphicon-floppy-disk" aria-hidden="true"></span> Guardar
+                        </button>
+
+                    </div>
+                    <div class="col-md-4">
+                        <div class="fact-total">
+                            <div class="subtotal clearfix">
+                                <span>Sub Total Ventas</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_sub" id="total_sub" value="0.00" class="vale" decimales="2" readonly=""></span>
+                            </div>
+                            <div class="descuentos clearfix">
+                                <span>Gravadas</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_gravadas" id="total_gravadas" value="0.00" decimales="2"  class="vale" readonly=""></span>
+                            </div>
+                            <div class="descuentos clearfix">
+                                <span>Gratuitas</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_gratuitas" id="total_gratuitas" value="0.00" decimales="2"  class="vale" readonly=""></span>
+                            </div>
+                            <div class="descuentos clearfix">
+                                <span>Exoneradas</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_exoneradas" id="total_exoneradas" value="0.00" decimales="2"  class="vale" readonly=""></span>
+                            </div>
+                            <div class="descuentos clearfix">
+                                <span>Inafectas</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_inafectas" id="total_inafectas" value="0.00" decimales="2"  class="vale" readonly=""></span>
+                            </div>
+                            <div class="exportacion clearfix">
+                                <span>Exportación</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_exportas" id="total_exportas" value="0.00" decimales="2"  class="vale" readonly=""></span>
+                            </div>
+                            <div class="descuentos clearfix">
+                                <span>Descuentos</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_descuentos" id="total_descuentos" value="0.00" decimales="2"  class="vale" readonly=""></span>
+                            </div>
+                            <div class="valorventa clearfix">
+                                <span>Valor de Venta</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_valor" id="total_valor" value="0.00" class="vale" decimales="2"  readonly=""></span>
+                            </div>
+                            <div class="igv clearfix">
+                                <span>IGV</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda"><input type="text" name="total_igv" id="total_igv" value="0.00" class="vale" decimales="2"  readonly=""></span>
+                            </div>
+                            <div class="total clearfix">
+                                <span>Importe Total</span>
+                                <i class="msimb">S/.</i>
+                                <span class="moneda" id="total"><input type="text" name="total_total" id="total_total" value="0.00" decimales="2"  class="vale" readonly=""></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Elementos clonables -->
+<div id="clonables" class="hide">
+    <div class="fact-item">
+        <div class="row"> 
+            <input type="hidden" name="deta_id[]" value="" />
+            <input type="hidden" name="moneda[]" value="" />
+            <div class="col-sm-1 formdrown">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-danger btn-sm" data-href="/delete.php?id=23" data-toggle="modal" data-target="#confirm-delete">
+                        <span class="glyphicon glyphicon-trash borrarItem" aria-hidden="true"></span>
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <span class="caret"></span>
+                        <span class="sr-only">Toggle Dropdown</span>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><label> Descuento</label><input type="text" style="" name="descuento[]" value="0.00" class="form-control text-right input-sm" decimales="2" disabled /></li>
+                        <li><label> Gratuita</label><?= form_dropdown('gratuita[]', $gratuita_select, 'NO', array('class' => 'form-control input-sm', "id" => "gratuita", 'disabled' => '')); ?></li>
+                        <li><label> IGV</label><input type="text" name="igv[]" value="0.00" class="form-control text-right input-sm" decimales="2" readonly /></li>
+                        <li><label> Valor</label><input type="text" id="valor" name="valor[]" value="0.00" class="form-control text-right input-sm" decimales="10" disabled/></li>
+                        <li><label> Tipo</label><?= form_dropdown('tipo[]', $tipo_detalle, '10', array('class' => 'form-control input-sm', "id" => "tipo", 'disabled' => '')); ?></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="col-sm-6">
+                <div class="input-group">
+                    <select name="producto[]" class="form-control deta_producto" id="producto">
+                    </select>
+                    <span class="input-group-btn">
+                        <a class="btn btn-default crearproducto btn-sm" href="<?php echo base_url() ?>producto/crear">
+                            <span class="glyphicon glyphicon-plus-sign"></span>
+                        </a>
+                    </span>
+                </div>
+            </div>
+
+            <div class="col-sm-3 hidden">
+                <textarea style="height:25px" type="text" name="detalle[]" class="form-control deta_detalle input-sm" disabled></textarea>
+            </div>
+
+            <div class="col-sm-5">
+                <div class="row">
+                    <div class="col-sm-3 hidden">
+                        <input type="text" name="codigo[]" value="" class="form-control input-sm" disabled />
+                    </div>
+                    <!--
+                    <div class="col-sm-3">
+                        <input type="text" name="unidad[]" value="" class="form-control input-sm" disabled />
+                    </div>
+                -->
+                    <div class="col-sm-3">
+                        <?= form_dropdown('unidad[]', $cmb_unidad, '',array('class' => 'form-control input-sm', "id" => "unidad", 'disabled' => '', 'readonly' => '')); ?>
+                    </div>
+                    <div class="col-sm-3">
+                        <input type="text" name="cantidad[]" value="1" class="form-control input-sm text-right" decimales="10" disabled/>
+                    </div>
+
+                    
+                    <div class="col-sm-3">
+                        <div class="input-group">
+                            <span class="input-group-addon msimb">S/.</span>
+                            <input type="text" id="precio" name="precio[]" value="0.00" class="form-control input-sm text-right" decimales="2" disabled/>
+                        </div>
+
+                    </div>
+                    
+                    <div class="col-sm-3">
+                        <div class="input-group">
+                            <span class="input-group-addon msimb">S/.</span>
+                            <input type="text" name="importe[]" value="0.00" class="form-control input-sm text-right" decimales="2" readonly />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+<!-- Fin de elementos clonables -->
+<div class="modal fade" id="confirm-delete" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="myModalLabel">Confirmación</h4>
+            </div>
+            <div class="modal-body">
+                <p>¿Relmente desea borrar el registro?</p>
+                <p class="debug-url"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+                <a class="btn btn-danger btn-ok">Borrar</a>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+	$('#confirm-delete').on('show.bs.modal', function (e) {
+		$this = $(e.relatedTarget);
+		$dlg = $(e.delegateTarget);
+		$(this).find('.btn-ok').on('click', function () {
+			$this.parents('.fact-item').fadeOut('slow', function () {
+				$this.parents('.fact-item').remove();
+				updateTotal();
+			});
+			$dlg.modal('hide')
+		});
+	});
+</script>

@@ -1,0 +1,317 @@
+$(document).ready(function(){
+    
+    $('input.fecha').daterangepicker({
+        singleDatePicker: true,
+        locale: {
+            format: 'DD/MM/YYYY'
+        }
+    });
+    
+    $('#moneda_local').on('change', function(){
+        console.log("change_moneda");
+        if($(this).val() == 'SOLES') $(".msimb").text("S/.");
+        else $(".msimb").text("$");
+    })
+    $('input[name="t_monto[0]"]').on('change', function(){
+        var monto = $(this).val();
+        if(!esNumeroPositivo(monto) || monto == '') {$(this).dval(0); }
+        else{$(this).dval(monto)}
+    })
+
+    var tercero = $('.tercero');
+    var sel_tipo = $('select[name="tipo_serv[0]"]');
+    tercero.hide();
+    sel_tipo.on('change', function(){
+        if($(this).val() == 'TERCERO') tercero.show();
+        else {
+            $('input[name="t_nombre[0]"]').val('');
+            $('input[name="t_monto[0]"]').val('0.00');
+            tercero.hide();
+        }
+    })
+
+    $('.datepicker').daterangepicker({
+        singleDatePicker: true,
+        //minDate: moment(),
+        locale: {
+            format: 'DD/MM/YYYY'
+        }
+    });
+    $('.timepicker').datetimepicker({
+        format: 'LT'
+    });
+
+    $('#checkigv').change(function(){
+        igv = 0;
+        subtotal = $("#total_sub").val();
+        total = 0;
+        if($(this).prop('checked')){
+            igv = Math.m(subtotal,0.18);
+            $(this).val('SI');
+        }else{
+            $(this).val('NO');
+        }
+        total = parseFloat(subtotal) + parseFloat(igv);
+        $("#total_sub").dval(subtotal);
+        $("#total_igv").dval(igv);
+        $("#total_total").dval(total);
+    })
+    
+    $sel = $('select#cliente_local').select2({
+        placeholder: 'Buscar Contacto',
+        width: '100%',
+        dropdownParent: $("#mdl-local"),
+        language: "es",
+        minimumInputLength: Infinity,
+        ajax: {
+            url: baseurl + "Contacto/buscar_clie",
+            dataType: 'json',
+            data: function(params) {
+                return {
+                    q: params.term,
+                    p: params.page,
+                    t: $('#tipop').val()
+                };
+            },
+            processResults: function(data, params) {
+                params.page = params.page || 1;
+                return {
+                    results: data.items,
+                    pagination: {
+                        more: (params.page * 30) < data.total_count
+                    }
+                };
+            },
+            cache: true
+        },
+        escapeMarkup: function(markup) {
+            return markup;
+        },
+        minimumInputLength: 0,
+        templateResult: formatRepo, 
+        templateSelection: formatRepoSelection,
+    }).on("select2:select", function(e) {
+        $('.deta_servicio, .deta_hotel').val(null).trigger('change');
+        $('input[name="clie_rsocial"]').val(e.params.data.text);
+        $('input[name="clie_abrev"]').val(e.params.data.codigo);
+    });
+    
+    if($('#clie_id').val() != '' ){
+        var clie_id = $('#clie_id').val();
+        var clie_rsocial = $('#clie_rsocial').val();
+        var clie_codigo = $('#clie_codigo').val();
+        var lunch_pre = $('#deta_lunch_pre').val();
+        
+        $('select#cliente_local').select2("trigger", "select", {
+            data: { id: clie_id, text: clie_rsocial, codigo: clie_codigo, lunch_prec: lunch_pre}
+        });
+        if (detas.length > 0) {
+            $('#moneda_local').change();
+            $.each(detas, function(i, elem) {
+                console.log(elem);
+                var padre = $(".serv-item");
+                
+                $('textarea[name="detalle[0]"]').val(elem.deta_descripcion);
+                $('input[name="deta_fecha[0]"]').val(elem.deta_fechaserv);
+                if(elem.deta_hora != "12:00 AM")
+                    $('input[name="deta_hora[0]"]').val(elem.deta_hora);
+                $('input[name="deta_lunch[0]"]').val(elem.deta_lunch);
+                $('input[name="deta_lunch_pre[0]"]').val(elem.deta_lunch_pre);
+                $('select[name="tipo_serv[0]"]').val(elem.deta_xcta);
+                if(elem.deta_xcta == 'TERCERO') tercero.show();
+                
+                $('input[name="t_nombre[0]"]').val(elem.deta_terc_nombre);
+                $('input[name="t_monto[0]"]').val(elem.deta_terc_monto);
+
+                $('input[name="deta_guia[0]"]').val(elem.deta_guia);
+                $('input[name="hotel_nombre[0]"]').val(elem.deta_hotel);
+                $('input[name="deta_ruta[0]"]').val(elem.deta_ruta);
+                $('input[name="deta_lugar[0]"]').val(elem.deta_lugar);
+                $('select[name="embarcacion[0]"]').val(elem.deta_emba_id);
+                $('input[name="emba_name[0]"]').val(elem.deta_emba_name);
+
+                $('input[name="pax[0]"]').val(elem.deta_pax);
+                $('input[name="precio[0]"]').val(elem.deta_precio).on('change', updateRow);
+                $('input[name="importe[0]"]').val(elem.deta_total);
+                $('input[name="deta_id[0]"]').val(elem.deta_id);
+
+                if(elem.adiciones.length > 0){
+                    $.each(elem.adiciones, function(i, add) {
+                        $nuevafilaadic = $('#clonables .adides-item').clone();
+                        name = "adic_nombre[0][]";
+                        precio = "adic_precio[0][]";
+                        id = "adic_id[0][]";
+                        find = ".adic-items";
+                        $nuevafilaadic.find('.adic_id').attr("name",id).val(add.padi_id);
+                        $nuevafilaadic.find('.adides-precio').attr("name",precio).val(add.padi_monto).on('change', updateRow);
+                        $nuevafilaadic.find('.adides-nombre').attr("name",name).val(add.padi_descripcion);
+                        padre.find(find).append($nuevafilaadic);
+                    });
+                    
+                }
+                if(elem.descuentos.length > 0){
+                    $.each(elem.descuentos, function(i, add) {
+                        $nuevafilaadic = $('#clonables .adides-item').clone();
+                        name = "desc_nombre[0][]";
+                        precio = "desc_precio[0][]";
+                        id = "desc_id[0][]";
+                        find = ".desc-items";
+                        $nuevafilaadic.find('.adic_id').attr("name",id).val(add.padi_id);
+                        $nuevafilaadic.find('.adides-precio').attr("name",precio).val(add.padi_monto).on('change', updateRow);
+                        $nuevafilaadic.find('.adides-nombre').attr("name",name).val(add.padi_descripcion);
+                        padre.find(find).append($nuevafilaadic);
+                    });
+                }
+                
+            });
+        }
+    }
+    
+    $('input[name="precio[0]"]').on('change', updateRow);
+    /*
+    $('input[name="pax[0]"]').on('change', updateRow);
+    $('input[name="deta_lunch[0]"]').on('change', updateRow);
+    $('input[name="deta_lunch_pre[0]"]').on('change', updateRow);
+    */
+    $('.btn-adides').on('click', adicionales);
+    $('.adides-precio').on('change', updateRow);
+
+    $('#embarcaion').change(function(){
+        if($(this).val() == '') nombre = '';
+        else nombre = $('#embarcaion option:selected').text();
+        $('input[name="emba_name[0]"]').val(nombre);
+    })
+
+    $('#add-image').on('click', function(){
+        var items = $('.files').find('.image-item');
+        $nuevafila = $('#clonables .image-item').clone();
+        $nuevafila.find('input[name="imagen"]').attr("name","imagen"+items.length);
+        $nuevafila.appendTo('.files');
+        $('#num_images').val(items.length+1);
+        return false; 
+    })
+})
+
+function adicionales(){
+    $nuevafila = $('#clonables .adides-item').clone();
+    var padre = $(this).closest(".serv-item");
+    pos = padre.find('.posicion').val();
+            
+    if($(this).attr("data-val") == '1'){
+        name = "adic_nombre["+pos+"][]";
+        precio = "adic_precio["+pos+"][]";
+        find = ".adic-items";
+    }else{
+        name = "desc_nombre["+pos+"][]";
+        precio = "desc_precio["+pos+"][]";
+        find = ".desc-items";
+    }
+    $nuevafila.find('.adides-precio').on('change', updateRow);
+    $nuevafila.find('.adides-nombre').attr("name",name);
+    $nuevafila.find('.adides-precio').attr("name",precio);
+    padre.find(find).append($nuevafila);
+    updateRow();
+    return false;   
+}
+function updateRow() {
+    if($(this).hasClass('text-right')) $(this).attr('dval',$(this).val()); ///importante
+    var padre = $(this).closest('.serv-item');
+            pos = padre.find('.posicion').val();
+            pax = padre.find('input[name="pax[0]"]').val();
+            precio = padre.find('input[name="precio[0]"]').val();
+            deta_lunch = padre.find('input[name="deta_lunch[0]"]').val();
+            deta_lunch_pre = padre.find('input[name="deta_lunch_pre[0]"]').val();
+            adicion = padre.find('input[name="adic_precio[0][]"]');
+            descuento = padre.find('input[name="desc_precio[0][]"]');
+            
+
+    if(!esNumeroPositivo(pax) || pax == '') { pax = 0; padre.find('input[name="pax[0]"]').dval(0); }
+    if(!esNumeroPositivo(precio) || precio == '') { precio = 0; padre.find('input[name="precio[0]"]').dval(0); }
+    if(!esNumeroPositivo(deta_lunch) || deta_lunch == '') { deta_lunch = 0; padre.find('input[name="deta_lunch[0]"]').dval(0); }
+    if(!esNumeroPositivo(deta_lunch_pre) || deta_lunch_pre == '') { deta_lunch_pre = 0; padre.find('input[name="deta_lunch_pre[0]"]').dval(0); }
+    
+    var adiciones = 0;
+    var descuentos = 0;
+    var adic = [];
+    var desc = [];
+    if(adicion.length > 0){
+        adicion.each(function(i, elem) {
+            var numero = $(elem).val();
+            if(!esNumeroPositivo(numero) || numero == '') { numero = 0; $(this).dval(0); }
+            adiciones += parseFloat(numero);
+            adic[i] = [$(this),numero];
+        })
+        for (var i = adic.length - 1; i >= 0; i--) {
+            adic[i][0].dval(adic[i][1]);
+        }
+    }
+    if(descuento.length > 0){
+        descuento.each(function(i, elem) {
+            var numero = $(elem).val();
+            if(!esNumeroPositivo(numero) || numero == '') { numero = 0; $(this).dval(0); }
+            descuentos += parseFloat(numero);
+            desc[i] = [$(this),numero];
+        })
+        
+        for (var i = desc.length - 1; i >= 0; i--) {
+            desc[i][0].dval(desc[i][1]);
+        }
+    }
+
+    var importe = 0;
+
+    if (esNumeroPositivo(pax) && esNumeroPositivo(precio)) {
+        //importe = (pax * precio) + (deta_lunch * deta_lunch_pre) + (adiciones - descuentos);
+        importe = parseFloat(precio) + (adiciones - descuentos);
+    } else {
+        padre.addClass('error-producto');
+    }
+    //////////////////////////////////////////////
+    llenarrow({importe:importe,precio:precio,pax:pax, deta_lunch:deta_lunch, deta_lunch_pre:deta_lunch_pre},padre, pos)
+    updateTotal();
+    ///////////////////
+}
+function llenarrow(ar , padre){
+    $.each(ar,function(item,val){
+        if(item == 'deta_lunch' || item == 'pax')
+            $item = padre.find('input[name="'+item+'[0]"]').val((val));
+        else
+            $item = padre.find('input[name="'+item+'[0]"]').dval((val));
+    })
+}
+function updateTotal(){
+    var productos = $('.serv-item'),
+            subtotal = 0.00,
+            igv = 0.00,
+            total = 0.00;
+    productos.each(function () {
+        var servicio = $(this).find('.servicio').val(),
+            cantidad = $(this).find('.pax').val(),
+            importe = $(this).find('.importe').dval();
+        if (servicio != '' || cantidad != '' || importe != '') {
+            if (esNumeroPositivo(importe)) {
+                if ($(this).hasClass('error-producto')) {
+                    $(this).removeClass('error-producto');
+                }
+                subtotal += parseFloat(importe);
+            } else {
+                $(this).addClass('error-producto');
+            }
+        }
+    });
+
+    if($('#checkigv').prop('checked'))
+        igv = Math.m(subtotal,0.18);
+    total = subtotal + igv;
+    $("#total_sub").dval(subtotal);
+    $("#total_igv").dval(igv);
+    $("#total_total").dval(total);
+}
+function formatRepo (repo) {
+  var markup = "<strong>"+repo.codigo+":</strong> "+repo.text;
+  return markup;
+}
+
+function formatRepoSelection (repo) {
+  return "<strong>"+repo.codigo+":</strong> "+repo.text;
+}
